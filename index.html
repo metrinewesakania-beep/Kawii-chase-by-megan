@@ -1,69 +1,107 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Kawii Chase — By Megan (Prototype)</title>
-  <link rel="stylesheet" href="/style.css">
-</head>
-<body>
-  <main id="game" class="safe-area">
-    <div id="overlay" aria-live="polite"></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta
+      name="description"
+      content="Kawii Chase — neon endless skate chase prototype"
+    />
+    <title>Kawii Chase</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main id="game" class="game-shell">
+      <canvas id="glcanvas" aria-label="Kawii Chase 3D game area"></canvas>
 
-    <section id="title-screen" class="panel">
-      <h1>Kawii Chase</h1>
-      <p class="subtitle">Endless 3-lane skate chase — prototype art</p>
-      <div class="controls-row">
-        <button id="start-btn" class="btn primary">Start</button>
-        <button id="help-btn" class="btn">How to play</button>
+      <div id="title-screen" class="panel visible" aria-live="polite">
+        <p class="eyebrow">prototype</p>
+        <h1>Kawii Chase</h1>
+        <p class="subtitle">Endless 3-lane skate chase</p>
+        <div class="btn-row">
+          <button id="start-btn" class="btn primary" type="button">
+            Start Run
+          </button>
+          <button id="help-btn" class="btn" type="button">How to play</button>
+        </div>
+        <p class="small">
+          Primitive prototypes built from simple meshes instead of photoreal 3D
+          art.
+        </p>
       </div>
-      <p class="small muted">Primitive meshes used for prototype — not photoreal assets.</p>
-    </section>
 
-    <canvas id="glcanvas" aria-label="3D game canvas"></canvas>
-
-    <section id="hud" class="hud" aria-hidden="false">
-      <div id="score">Score: <span id="score-val">0</span></div>
-      <div id="best">Best: <span id="best-val">0</span></div>
-      <div id="chase-meter" title="Chase meter" aria-hidden="false">
-        <div id="chaser-fill"></div>
+      <div id="loading" class="panel visible" aria-live="polite">
+        <p class="loading-text">Loading WebGL…</p>
       </div>
-      <div id="game-controls">
-        <button id="pause-btn" class="btn small">Pause</button>
-        <button id="restart-btn" class="btn small">Restart</button>
+
+      <div id="error" class="panel hidden" role="alert" aria-live="assertive">
+        <h2>WebGL unavailable</h2>
+        <p>
+          We couldn’t start the 3D scene. Please update your browser, enable
+          hardware acceleration, or use a modern device.
+        </p>
       </div>
-    </section>
 
-    <section id="mobile-controls" class="mobile-controls" aria-hidden="true">
-      <button id="left-btn" class="btn circle" aria-label="Move left">◀</button>
-      <div class="v-controls">
-        <button id="jump-btn" class="btn circle" aria-label="Jump">⬆</button>
-        <button id="slide-btn" class="btn circle" aria-label="Slide">⬇</button>
+      <aside id="hud" class="hud" aria-live="polite">
+        <div class="hud-block">
+          <span class="label">Score</span>
+          <strong id="score-val">0</strong>
+        </div>
+
+        <div class="hud-block">
+          <span class="label">Best</span>
+          <strong id="best-val">0</strong>
+        </div>
+
+        <div class="hud-block chase-wrap">
+          <span class="label">Chase</span>
+          <div class="chase-meter" aria-label="Chase meter">
+            <div id="chaser-fill"></div>
+          </div>
+        </div>
+
+        <div class="hud-buttons">
+          <button id="pause-btn" class="btn small" type="button">Pause</button>
+          <button id="restart-btn" class="btn small" type="button">Restart</button>
+        </div>
+      </aside>
+
+      <div id="mobile-controls" class="mobile-controls" aria-label="Touch controls">
+        <button id="left-btn" class="btn control-btn" type="button" aria-label="Move left">
+          ◀
+        </button>
+
+        <div class="stacked-controls">
+          <button id="jump-btn" class="btn control-btn" type="button" aria-label="Jump">
+            ⬆
+          </button>
+          <button id="slide-btn" class="btn control-btn" type="button" aria-label="Slide">
+            ⬇
+          </button>
+        </div>
+
+        <button id="right-btn" class="btn control-btn" type="button" aria-label="Move right">
+          ▶
+        </button>
+
+        <button id="trick-btn" class="btn trick-btn" type="button" aria-label="Do trick">
+          ✨
+        </button>
       </div>
-      <button id="right-btn" class="btn circle" aria-label="Move right">▶</button>
-      <button id="trick-btn" class="btn small ghost" aria-label="Trick">✨</button>
-    </section>
 
-    <section id="message" class="panel hidden" role="dialog" aria-modal="true">
-      <h2 id="message-title">Paused</h2>
-      <p id="message-body">Press resume to continue.</p>
-      <div class="controls-row">
-        <button id="resume-btn" class="btn primary">Resume</button>
-        <button id="message-restart" class="btn">Restart</button>
+      <div id="message" class="panel hidden" role="dialog" aria-modal="true">
+        <h2 id="message-title">Paused</h2>
+        <p id="message-body">Take a breath and hit resume.</p>
+        <div class="btn-row">
+          <button id="resume-btn" class="btn primary" type="button">Resume</button>
+          <button id="message-restart" class="btn" type="button">Restart</button>
+        </div>
       </div>
-    </section>
+    </main>
 
-    <section id="loading" class="panel" aria-hidden="false">
-      <p id="loading-text">Loading WebGL...</p>
-    </section>
-
-    <section id="error" class="panel hidden" role="alert">
-      <h2>WebGL unavailable</h2>
-      <p>We couldn't start WebGL. Try a modern browser or enable hardware acceleration. If the problem persists, try a different device.</p>
-    </section>
-
-  </main>
-
-  <script type="module" src="/src/main.js"></script>
-</body>
+    <script type="module" src="./src/main.js"></script>
+  </body>
 </html>
