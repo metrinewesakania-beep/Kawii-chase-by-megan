@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Kawii Chase — By Megan (Prototype)</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main id="game" class="safe-area">
+    <div id="overlay" aria-live="polite"></div>
+
+    <section id="title-screen" class="panel">
+      <h1>Kawii Chase</h1>
+      <p class="subtitle">Endless 3-lane skate chase — prototype art</p>
+      <div class="controls-row">
+        <button id="start-btn" class="btn primary">Start</button>
+        <button id="help-btn" class="btn">How to play</button>
+      </div>
+      <p class="small muted">Primitive meshes used for prototype — not photoreal assets.</p>
+    </section>
+
+    <canvas id="glcanvas" aria-label="3D game canvas"></canvas>
+
+    <section id="hud" class="hud" aria-hidden="false">
+      <div id="score">Score: <span id="score-val">0</span></div>
+      <div id="best">Best: <span id="best-val">0</span></div>
+      <div id="chase-meter" title="Chase meter" aria-hidden="false">
+        <div id="chaser-fill"></div>
+      </div>
+      <div id="game-controls">
+        <button id="pause-btn" class="btn small">Pause</button>
+        <button id="restart-btn" class="btn small">Restart</button>
+      </div>
+    </section>
+
+    <section id="mobile-controls" class="mobile-controls" aria-hidden="true">
+      <button id="left-btn" class="btn circle" aria-label="Move left">◀</button>
+      <div class="v-controls">
+        <button id="jump-btn" class="btn circle" aria-label="Jump">⬆</button>
+        <button id="slide-btn" class="btn circle" aria-label="Slide">⬇</button>
+      </div>
+      <button id="right-btn" class="btn circle" aria-label="Move right">▶</button>
+      <button id="trick-btn" class="btn small ghost" aria-label="Trick">✨</button>
+    </section>
+
+    <section id="message" class="panel hidden" role="dialog" aria-modal="true">
+      <h2 id="message-title">Paused</h2>
+      <p id="message-body">Press resume to continue.</p>
+      <div class="controls-row">
+        <button id="resume-btn" class="btn primary">Resume</button>
+        <button id="message-restart" class="btn">Restart</button>
+      </div>
+    </section>
+
+    <section id="loading" class="panel" aria-hidden="false">
+      <p id="loading-text">Loading WebGL...</p>
+    </section>
+
+    <section id="error" class="panel hidden" role="alert">
+      <h2>WebGL unavailable</h2>
+      <p>We couldn't start WebGL. Try a modern browser or enable hardware acceleration. If the problem persists, try a different device.</p>
+    </section>
+
+  </main>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
