@@ -1,5 +1,4 @@
-
-import * as THREE from "three";
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 import { createPlayer } from "./player.js";
 import { createWorld } from "./world.js";
 import { GameEngine } from "./game.js";
@@ -12,304 +11,389 @@ const loading = $("loading");
 const errorPanel = $("error");
 const titleScreen = $("title-screen");
 const hud = $("hud");
+const mobileControls = $("mobile-controls");
+const messagePanel = $("message");
+const resumeButton = $("resume-btn");
 
-let renderer;
-let engine;
-let world;
-let player;
-let controls;
+let renderer = null;
+let camera = null;
+let engine = null;
+let world = null;
+let player = null;
+let controls = null;
 let animationStarted = false;
 let disposed = false;
-
-function showError(message) {
-  console.error(message);
-
-  if (loading) loading.hidden = true;
-  if (errorPanel) {
-    errorPanel.hidden = false;
-    errorPanel.textContent =
-      "Unable to load the game. Please refresh the page. " +
-      String(message);
-  }
-}
+let buttonsBound = false;
 
 function hide(element) {
-  if (element) element.hidden = true;
+if (element) element.hidden = true;
 }
 
 function show(element) {
-  if (element) element.hidden = false;
+if (element) element.hidden = false;
 }
 
 function setText(id, value) {
-  const element = $(id);
-  if (element) element.textContent = String(value);
+const element = $(id);
+if (element) element.textContent = String(value);
 }
 
-function setupRenderer() {
-  if (!canvas) {
-    throw new Error('Missing canvas element: "glcanvas".');
-  }
-
-  renderer = new THREE.WebGLRenderer({
-    canvas,
-    antialias: true,
-    powerPreference: "high-performance"
-  });
-
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-  renderer.setSize(window.innerWidth, window.innerHeight, false);
-  renderer.setClearColor(0x100b26, 1);
-
-  if ("outputColorSpace" in renderer) {
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-  }
+function readBest() {
+try {
+return Number(localStorage.getItem("kawiis-chase-best")) || 0;
+} catch {
+return 0;
+}
 }
 
-function setupScene() {
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x100b26);
-  scene.fog = new THREE.Fog(0x100b26, 45, 190);
-
-  const camera = new THREE.PerspectiveCamera(
-    65,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    500
-  );
-
-  camera.position.set(0, 5.2, 10);
-  camera.lookAt(0, 1, -12);
-
-  scene.add(new THREE.HemisphereLight(0x9cecff, 0x27133f, 2));
-
-  const sunLight = new THREE.DirectionalLight(0xffc68c, 2.2);
-  sunLight.position.set(-8, 15, 10);
-  scene.add(sunLight);
-
-  const cyanLight = new THREE.PointLight(0x36eaff, 18, 45);
-  cyanLight.position.set(-5, 4, -15);
-  scene.add(cyanLight);
-
-  const pinkLight = new THREE.PointLight(0xff35cb, 18, 45);
-  pinkLight.position.set(5, 4, -28);
-  scene.add(pinkLight);
-
-  return { scene, camera };
+function saveBest(score) {
+try {
+localStorage.setItem(
+"kawiis-chase-best",
+String(Math.max(readBest(), Math.floor(Number(score) || 0)))
+);
+} catch {
+// The game can still run when storage is unavailable.
+}
 }
 
-function updateHud() {
-  if (!engine) return;
+function showError(error) {
+console.error("KAWIIS CHASE WITH MEGAN:", error);
 
-  const state = engine.state || engine;
+hide(loading);
 
-  if (state.score !== undefined) {
-    setText("score-val", Math.floor(state.score));
-  }
+if (errorPanel) {
+errorPanel.textContent =
+"Unable to load the game. Check your internet connection, " +
+"then refresh the page. Error: " +
+String(error?.message || error);
 
-  if (state.best !== undefined) {
-    setText("best-val", Math.floor(state.best));
-  }
+show(errorPanel);
 
-  if (state.chaserProgress !== undefined) {
-    const fill = $("chaser-fill");
-    if (fill) {
-      fill.style.width =
-        `${Math.max(0, Math.min(100, state.chaserProgress))}%`;
-    }
-  }
+}
 }
 
-function resize() {
-  if (!renderer) return;
+function showMessage(title, body, options = {}) {
+setText("message-title", title);
+setText("message-body", body);
 
-  const width = window.innerWidth;
-  const height = Math.max(1, window.innerHeight);
-
-  renderer.setSize(width, height, false);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-
-  if (camera) {
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-  }
+if (resumeButton) {
+resumeButton.hidden = options.showResume === false;
 }
 
-let camera;
-
-function showMessage(title, body) {
-  setText("message-title", title);
-  setText("message-body", body);
-  show($("message"));
+show(messagePanel);
 }
 
 function hideMessage() {
-  hide($("message"));
+hide(messagePanel);
+}
+
+function setupRenderer() {
+if (!canvas) {
+throw new Error('Missing canvas element with id "glcanvas".');
+}
+
+renderer = new THREE.WebGLRenderer({
+canvas,
+antialias: true,
+powerPreference: "high-performance"
+});
+
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+renderer.setSize(window.innerWidth, window.innerHeight, false);
+renderer.setClearColor(0x100b26, 1);
+
+if ("outputColorSpace" in renderer) {
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+}
+}
+
+function setupScene() {
+const scene = new THREE.Scene();
+
+scene.background = new THREE.Color(0x100b26);
+scene.fog = new THREE.Fog(0x100b26, 45, 190);
+
+camera = new THREE.PerspectiveCamera(
+65,
+window.innerWidth / Math.max(1, window.innerHeight),
+0.1,
+500
+);
+
+camera.position.set(0, 5.2, 10);
+camera.lookAt(0, 1, -12);
+
+scene.add(
+new THREE.HemisphereLight(0x9cecff, 0x27133f, 2)
+);
+
+const sunLight = new THREE.DirectionalLight(0xffc68c, 2.2);
+sunLight.position.set(-8, 15, 10);
+scene.add(sunLight);
+
+const cyanLight = new THREE.PointLight(0x36eaff, 18, 45);
+cyanLight.position.set(-5, 4, -15);
+scene.add(cyanLight);
+
+const pinkLight = new THREE.PointLight(0xff35cb, 18, 45);
+pinkLight.position.set(5, 4, -28);
+scene.add(pinkLight);
+
+return scene;
+}
+
+function resize() {
+if (!renderer || !camera || disposed) return;
+
+const width = Math.max(1, window.innerWidth);
+const height = Math.max(1, window.innerHeight);
+
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+renderer.setSize(width, height, false);
+
+camera.aspect = width / height;
+camera.updateProjectionMatrix();
+}
+
+function updateHud() {
+if (!engine) return;
+
+setText("score-val", Math.floor(engine.score || 0));
+setText("best-val", Math.floor(engine.best || 0));
+
+const fill = $("chaser-fill");
+
+if (fill) {
+fill.style.width =
+"${Math.max(0, Math.min(100, engine.chase || 0))}%";
+}
 }
 
 function startGame() {
-  if (!engine) return;
+if (!engine) return;
 
-  hide(titleScreen);
-  hideMessage();
-  hide(errorPanel);
-  show(hud);
-  show($("mobile-controls"));
+hide(titleScreen);
+hideMessage();
+hide(errorPanel);
+show(hud);
+show(mobileControls);
 
-  engine.start();
+engine.start();
+updateHud();
+}
+
+function restartGame() {
+if (!engine) return;
+
+hideMessage();
+hide(titleScreen);
+show(hud);
+show(mobileControls);
+
+engine.restart();
+updateHud();
 }
 
 function togglePause() {
-  if (!engine) return;
+if (!engine) return;
 
-  const paused = engine.isPaused === true;
-
-  if (paused) {
-    engine.resume();
-    hideMessage();
-  } else {
-    engine.pause();
-    showMessage("PAUSED", "Take a breath. Resume when you're ready.");
-  }
+if (engine.state === "playing") {
+engine.pause();
+showMessage(
+"PAUSED",
+"Take a breath. Resume when you're ready."
+);
+} else if (engine.state === "paused") {
+engine.resume();
+hideMessage();
+}
 }
 
 function bindButtons() {
-  $("start-btn")?.addEventListener("click", startGame);
+if (buttonsBound) return;
+buttonsBound = true;
 
-  $("restart-btn")?.addEventListener("click", () => {
-    if (engine) engine.restart();
-    hideMessage();
-    show(hud);
-    show($("mobile-controls"));
-  });
+$("start-btn")?.addEventListener("click", startGame);
 
-  $("message-restart")?.addEventListener("click", () => {
-    if (engine) engine.restart();
-    hideMessage();
-    show(hud);
-    show($("mobile-controls"));
-  });
+$("restart-btn")?.addEventListener("click", restartGame);
+$("message-restart")?.addEventListener("click", restartGame);
 
-  $("resume-btn")?.addEventListener("click", () => {
-    if (engine) engine.resume();
-    hideMessage();
-  });
+$("resume-btn")?.addEventListener("click", () => {
+if (engine?.state === "paused") {
+engine.resume();
+}
 
-  $("pause-btn")?.addEventListener("click", togglePause);
+hideMessage();
 
-  $("help-btn")?.addEventListener("click", () => {
-    showMessage(
-      "HOW TO PLAY",
-      "Use the arrow buttons or swipe to change lanes. " +
-      "Jump over obstacles, slide under signs, perform tricks, " +
-      "and collect glowing rings."
-    );
-  });
+});
 
-  $("error")?.addEventListener("click", () => {
-    window.location.reload();
-  });
+$("pause-btn")?.addEventListener("click", togglePause);
+
+$("help-btn")?.addEventListener("click", () => {
+showMessage(
+"HOW TO PLAY",
+"Move left or right to change lanes. Jump over barriers, " +
+"slide under signs, perform tricks while airborne, and " +
+"collect glowing rings. Avoid obstacles and keep moving!"
+);
+});
+
+errorPanel?.addEventListener("click", () => {
+window.location.reload();
+});
+}
+
+function handleAction(action) {
+if (!engine || engine.state !== "playing" || !player) return;
+
+switch (action) {
+case "left":
+player.setLane(-1);
+break;
+
+case "right":
+  player.setLane(1);
+  break;
+
+case "jump":
+  player.jump();
+  break;
+
+case "slide":
+  player.slide();
+  break;
+
+case "trick":
+  // Tricks only score while the player is airborne.
+  if (player.trick()) {
+    engine.addTrick(50);
+  }
+  break;
+
+}
 }
 
 async function boot() {
-  try {
-    if (loading) show(loading);
-    hide(errorPanel);
+try {
+show(loading);
+hide(errorPanel);
+hide(titleScreen);
+hide(hud);
+hide(mobileControls);
+hideMessage();
 
-    setupRenderer();
+setupRenderer();
 
-    const setup = setupScene();
-    const scene = setup.scene;
-    camera = setup.camera;
+const scene = setupScene();
 
-    world = await createWorld({ THREE, scene });
-    player = createPlayer({ THREE, scene });
+world = await createWorld({ THREE, scene });
 
-    const ui = {
-      setScore: (score) => setText("score-val", score),
-      setBest: (best) => setText("best-val", best),
-      showMessage,
-      hideMessage,
-      onGameOver: (score) => {
-        showMessage("CHASE OVER", `Final score: ${score}`);
-      }
-    };
-
-    engine = new GameEngine({
-      THREE,
-      scene,
-      camera,
-      renderer,
-      world,
-      player,
-      ui
-    });
-
-    controls = createControls({
-      onAction: (action) => {
-        if (!engine) return;
-
-        if (action === "left") player.setLane(-1);
-        if (action === "right") player.setLane(1);
-        if (action === "jump") player.jump();
-        if (action === "slide") player.slide();
-        if (action === "trick") {
-          player.trick();
-          if (engine.addTrick) engine.addTrick();
-        }
-      },
-      onPause: togglePause,
-      elements: {
-        left: $("left-btn"),
-        right: $("right-btn"),
-        jump: $("jump-btn"),
-        slide: $("slide-btn"),
-        trick: $("trick-btn")
-      }
-    });
-
-    bindButtons();
-    window.addEventListener("resize", resize);
-
-    if (loading) hide(loading);
-    show(titleScreen);
-    hide(hud);
-    hide($("mobile-controls"));
-
-    let previousTime = 0;
-
-    renderer.setAnimationLoop((time) => {
-      if (disposed) return;
-
-      const delta = previousTime
-        ? Math.min((time - previousTime) / 1000, 0.05)
-        : 0;
-
-      previousTime = time;
-
-      if (engine && animationStarted) {
-        engine.update(delta);
-        updateHud();
-      }
-
-      renderer.render(scene, camera);
-    });
-
-    animationStarted = true;
-  } catch (error) {
-    showError(error?.message || error);
-  }
+if (disposed) {
+  world.dispose?.();
+  renderer?.dispose();
+  return;
 }
 
-window.addEventListener("pagehide", () => {
-  disposed = true;
+player = createPlayer({ THREE, scene });
 
-  if (renderer) renderer.setAnimationLoop(null);
-  if (controls && controls.dispose) controls.dispose();
-  if (engine && engine.dispose) engine.dispose();
-  if (player && player.dispose) player.dispose();
-  if (world && world.dispose) world.dispose();
-  if (renderer) renderer.dispose();
+const ui = {
+  getBest: readBest,
+  saveBest,
+  setScore: (score) => setText("score-val", Math.floor(score)),
+  setBest: (best) => setText("best-val", Math.floor(best)),
+  setChase: (chase) => {
+    const fill = $("chaser-fill");
+    if (fill) {
+      fill.style.width =
+        `${Math.max(0, Math.min(100, chase))}%`;
+    }
+  },
+  showMessage,
+  hideMessage,
+  onGameOver: (score) => {
+    showMessage(
+      "CHASE OVER",
+      `Final score: ${Math.floor(score)}`,
+      { showResume: false }
+    );
+  },
+  onStateChange: (state) => {
+    if (state === "playing") {
+      hideMessage();
+    }
+  }
+};
+
+engine = new GameEngine({
+  THREE,
+  scene,
+  camera,
+  renderer,
+  world,
+  player,
+  ui
 });
+
+controls = createControls({
+  onAction: handleAction,
+  onPause: togglePause,
+  elements: {
+    left: $("left-btn"),
+    right: $("right-btn"),
+    jump: $("jump-btn"),
+    slide: $("slide-btn"),
+    trick: $("trick-btn")
+  }
+});
+
+bindButtons();
+window.addEventListener("resize", resize);
+
+hide(loading);
+show(titleScreen);
+
+let previousTime = 0;
+
+renderer.setAnimationLoop((time) => {
+  if (disposed) return;
+
+  const delta = previousTime
+    ? Math.min((time - previousTime) / 1000, 0.05)
+    : 0;
+
+  previousTime = time;
+
+  if (engine && animationStarted) {
+    engine.update(delta);
+    updateHud();
+  }
+
+  renderer.render(scene, camera);
+});
+
+animationStarted = true;
+
+} catch (error) {
+showError(error);
+}
+}
+
+window.addEventListener(
+"pagehide",
+() => {
+disposed = true;
+window.removeEventListener("resize", resize);
+
+if (renderer) renderer.setAnimationLoop(null);
+controls?.dispose?.();
+engine?.dispose?.();
+player?.dispose?.();
+world?.dispose?.();
+renderer?.dispose?.();
+
+},
+{ once: true }
+);
 
 boot();
