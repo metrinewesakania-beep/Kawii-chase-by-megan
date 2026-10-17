@@ -1,189 +1,335 @@
-// src/world.js
-// createWorld({ THREE, scene }) -> world object
+
+ // src/world.js — game world, lanes, obstacles, rings, and reset
 export async function createWorld({ THREE, scene }) {
   const lanes = [-3.2, 0, 3.2];
+  const actors = [];
 
-  // Shared materials and geometries to reduce GC
   const mats = {
-    road: new THREE.MeshStandardMaterial({ color: 0x0b1220, roughness: 1 }),
-    stripe: new THREE.MeshStandardMaterial({ color: 0xffe59a, roughness: 0.8 }),
-    building: new THREE.MeshStandardMaterial({ color: 0x141130, roughness: 0.95 }),
+    ground: new THREE.MeshStandardMaterial({
+      color: 0x151526,
+      roughness: 1
+    }),
+    road: new THREE.MeshStandardMaterial({
+      color: 0x090d1b,
+      roughness: 0.95
+    }),
+    stripe: new THREE.MeshStandardMaterial({
+      color: 0xffe59a,
+      emissive: 0x665020
+    }),
+    building: new THREE.MeshStandardMaterial({
+      color: 0x17132e,
+      roughness: 0.9
+    }),
     neonPink: new THREE.MeshBasicMaterial({ color: 0xff4fd8 }),
     neonCyan: new THREE.MeshBasicMaterial({ color: 0x53f5ff }),
-    ring: new THREE.MeshStandardMaterial({ color: 0xff7fcf, emissive: 0xff7fcf, metalness: 0.6, roughness: 0.2 }),
-    obstacle: new THREE.MeshStandardMaterial({ color: 0xff7d6e, roughness: 0.7 }),
-    sign: new THREE.MeshStandardMaterial({ color: 0x4de4ff, roughness: 0.6 }),
-    crate: new THREE.MeshStandardMaterial({ color: 0x7b6dff, roughness: 0.7 }),
-    ramp: new THREE.MeshStandardMaterial({ color: 0xffb36a, roughness: 0.7 })
+    ring: new THREE.MeshStandardMaterial({
+      color: 0xff7fcf,
+      emissive: 0xff168f,
+      emissiveIntensity: 1.2,
+      metalness: 0.5,
+      roughness: 0.2
+    }),
+    obstacle: new THREE.MeshStandardMaterial({
+      color: 0xff716d,
+      emissive: 0x401018
+    }),
+    sign: new THREE.MeshStandardMaterial({
+      color: 0x4de4ff,
+      emissive: 0x126080
+    }),
+    crate: new THREE.MeshStandardMaterial({
+      color: 0x7968ff,
+      emissive: 0x201060
+    }),
+    ramp: new THREE.MeshStandardMaterial({
+      color: 0xffb36a,
+      emissive: 0x603010
+    }),
+    sunset: new THREE.MeshBasicMaterial({
+      color: 0xffa45b,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false
+    })
   };
 
   const geoms = {
-    stripe: new THREE.BoxGeometry(0.5, 0.04, 2.2),
-    ring: new THREE.TorusGeometry(0.56, 0.12, 10, 20),
+    ground: new THREE.BoxGeometry(40, 0.5, 400),
+    road: new THREE.BoxGeometry(14, 0.2, 400),
+    stripe: new THREE.BoxGeometry(0.12, 0.04, 2.2),
+    building: new THREE.BoxGeometry(1, 1, 1),
+    glow: new THREE.BoxGeometry(0.3, 1, 0.2),
+    ring: new THREE.TorusGeometry(0.56, 0.12, 10, 24),
     barrier: new THREE.BoxGeometry(2.2, 1.1, 1.1),
     crate: new THREE.BoxGeometry(1.4, 1.4, 1.4),
     signPole: new THREE.CylinderGeometry(0.08, 0.08, 3.4, 8),
-    signBox: new THREE.BoxGeometry(2.0, 0.8, 0.14),
-    ramp: new THREE.BoxGeometry(2.6, 0.6, 3.0)
+    signBox: new THREE.BoxGeometry(2, 0.8, 0.14),
+    ramp: new THREE.BoxGeometry(2.6, 0.6, 3)
   };
 
-  const actors = [];
-
-  // Static environment group
   const staticGroup = new THREE.Group();
-  scene.add(staticGroup);
+  const skyline = new THREE.Group();
 
-  // Road / ground
-  const ground = new THREE.Mesh(new THREE.BoxGeometry(40, 0.5, 400), new THREE.MeshStandardMaterial({ color: 0x0f1220, roughness: 1 }));
+  scene.add(staticGroup);
+  scene.add(skyline);
+
+  // Ground and road
+  const ground = new THREE.Mesh(geoms.ground, mats.ground);
   ground.position.set(0, -0.35, -100);
   staticGroup.add(ground);
 
-  const road = new THREE.Mesh(new THREE.BoxGeometry(14, 0.2, 400), mats.road);
+  const road = new THREE.Mesh(geoms.road, mats.road);
   road.position.set(0, 0.12, -100);
   staticGroup.add(road);
 
-  // lane stripes (repeated along z)
-  for (let i = -12; i < 160; i += 3.2) {
-    const s = new THREE.Mesh(geoms.stripe, mats.stripe);
-    s.position.set(0, 0.24, -i * 2.2);
-    staticGroup.add(s);
+  // Neon lane markings
+  for (let z = 0; z > -360; z -= 4.4) {
+    const stripe = new THREE.Mesh(geoms.stripe, mats.stripe);
+    stripe.position.set(-1.6, 0.24, z);
+    staticGroup.add(stripe);
+
+    const stripe2 = new THREE.Mesh(geoms.stripe, mats.stripe);
+    stripe2.position.set(1.6, 0.24, z);
+    staticGroup.add(stripe2);
   }
 
-  // skyline decorative
-  const skyline = new THREE.Group();
-  for (let i = 0; i < 22; i++) {
-    const h = 5 + Math.random() * 28;
-    const w = 1.6 + Math.random() * 3.0;
-    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, w * 0.8), mats.building.clone());
-    b.position.set(-28 + Math.random() * 56, h / 2 - 0.6, -40 - Math.random() * 260);
-    skyline.add(b);
-    const glow = new THREE.Mesh(new THREE.BoxGeometry(w * 0.2, h * 0.16, w * 0.2), Math.random() > 0.5 ? mats.neonCyan : mats.neonPink);
-    glow.position.set(b.position.x, h * 0.45, b.position.z + 0.6);
+  // Distant futuristic skyline
+  for (let i = 0; i < 36; i++) {
+    const h = 5 + Math.random() * 24;
+    const w = 2 + Math.random() * 4;
+
+    const building = new THREE.Mesh(geoms.building, mats.building);
+    building.scale.set(w, h, w * 0.8);
+
+    const side = Math.random() < 0.5 ? -1 : 1;
+    building.position.set(
+      side * (12 + Math.random() * 20),
+      h / 2 - 0.5,
+      -20 - Math.random() * 300
+    );
+
+    skyline.add(building);
+
+    const glow = new THREE.Mesh(
+      geoms.glow,
+      Math.random() > 0.5 ? mats.neonCyan : mats.neonPink
+    );
+
+    glow.scale.y = Math.max(1, h * 0.12);
+    glow.position.set(
+      building.position.x,
+      h * 0.45,
+      building.position.z + w * 0.42
+    );
+
     skyline.add(glow);
   }
-  scene.add(skyline);
 
-  // horizon glow
-  const sun = new THREE.Mesh(new THREE.SphereGeometry(18, 12, 12), new THREE.MeshBasicMaterial({ color: 0xffb36a, transparent: true, opacity: 0.12 }));
-  sun.position.set(0, 14, -120);
+  // Sunset glow on the horizon
+  const sun = new THREE.Mesh(
+    new THREE.SphereGeometry(18, 16, 16),
+    mats.sunset
+  );
+  sun.position.set(0, 14, -150);
   scene.add(sun);
 
-  // runtime variables
   let time = 0;
   let spawnCooldown = 0;
+  let disposed = false;
 
-  function spawnObstacle(kind = 'barrier', laneIndex = 1, z = -60) {
-    laneIndex = Math.max(0, Math.min(2, laneIndex));
-    const x = lanes[laneIndex];
+  function spawnObstacle(kind = "barrier", laneIndex = 1, z = -60) {
+    if (disposed) return null;
+
+    laneIndex = Math.max(0, Math.min(2, Math.floor(laneIndex)));
+
     const group = new THREE.Group();
-    group.position.set(x, 0, z - Math.random() * 6);
+    group.position.set(lanes[laneIndex], 0, z);
     group.userData = { kind, lane: laneIndex };
 
-    if (kind === 'barrier') {
-      const m = new THREE.Mesh(geoms.barrier, mats.obstacle);
-      m.position.y = 0.6;
-      group.add(m);
-    } else if (kind === 'crate') {
-      const c = new THREE.Mesh(geoms.crate, mats.crate);
-      c.position.y = 0.75;
-      group.add(c);
-    } else if (kind === 'sign') {
+    if (kind === "barrier") {
+      const mesh = new THREE.Mesh(geoms.barrier, mats.obstacle);
+      mesh.position.y = 0.6;
+      group.add(mesh);
+    } else if (kind === "crate") {
+      const mesh = new THREE.Mesh(geoms.crate, mats.crate);
+      mesh.position.y = 0.75;
+      group.add(mesh);
+    } else if (kind === "sign") {
       const pole = new THREE.Mesh(geoms.signPole, mats.sign);
-      pole.position.y = 1.9;
+      pole.position.y = 1.7;
       group.add(pole);
-      const box = new THREE.Mesh(geoms.signBox, mats.sign);
-      box.position.y = 3.1;
-      group.add(box);
-    } else if (kind === 'ramp') {
-      const r = new THREE.Mesh(geoms.ramp, mats.ramp);
-      r.rotation.z = -0.28;
-      r.position.y = 0.38;
-      group.add(r);
+
+      const board = new THREE.Mesh(geoms.signBox, mats.sign);
+      board.position.y = 3.1;
+      group.add(board);
+    } else if (kind === "ramp") {
+      const mesh = new THREE.Mesh(geoms.ramp, mats.ramp);
+      mesh.rotation.z = -0.28;
+      mesh.position.y = 0.38;
+      group.add(mesh);
+    } else {
+      return null;
     }
 
     scene.add(group);
-    const actor = { mesh: group, kind, lane: laneIndex, spawnedAt: time, collected: false };
+
+    const actor = {
+      mesh: group,
+      kind,
+      lane: laneIndex,
+      collected: false
+    };
+
     actors.push(actor);
     return actor;
   }
 
   function spawnRing(laneIndex = 1, z = -48) {
-    laneIndex = Math.max(0, Math.min(2, laneIndex));
-    const tor = new THREE.Mesh(geoms.ring, mats.ring);
-    tor.rotation.x = Math.PI / 2;
-    tor.position.set(lanes[laneIndex], 1.4 + Math.random() * 0.6, z - Math.random() * 6);
-    scene.add(tor);
-    const actor = { mesh: tor, kind: 'ring', lane: laneIndex, collected: false };
+    if (disposed) return null;
+
+    laneIndex = Math.max(0, Math.min(2, Math.floor(laneIndex)));
+
+    const ring = new THREE.Mesh(geoms.ring, mats.ring);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(
+      lanes[laneIndex],
+      1.4 + Math.random() * 0.6,
+      z
+    );
+
+    scene.add(ring);
+
+    const actor = {
+      mesh: ring,
+      kind: "ring",
+      lane: laneIndex,
+      collected: false
+    };
+
     actors.push(actor);
     return actor;
   }
 
   function removeActor(actor) {
     if (!actor) return;
-    if (actor.mesh && actor.mesh.parent) actor.mesh.parent.remove(actor.mesh);
-    const i = actors.indexOf(actor);
-    if (i >= 0) actors.splice(i, 1);
+
+    if (actor.mesh?.parent) {
+      actor.mesh.parent.remove(actor.mesh);
+    }
+
+    const index = actors.indexOf(actor);
+    if (index !== -1) actors.splice(index, 1);
   }
 
   function clearAll() {
     for (let i = actors.length - 1; i >= 0; i--) {
-      const a = actors[i];
-      if (a.mesh && a.mesh.parent) a.mesh.parent.remove(a.mesh);
+      const actor = actors[i];
+
+      if (actor.mesh?.parent) {
+        actor.mesh.parent.remove(actor.mesh);
+      }
     }
+
     actors.length = 0;
   }
 
-  // update: move actors towards player (increase z), spawn new ones
+  function reset() {
+    clearAll();
+    time = 0;
+    spawnCooldown = 0;
+  }
+
   function update(delta, speed = 18) {
+    if (disposed) return;
+
+    // Protect the simulation from unusually large frame times.
+    delta = Math.max(0, Math.min(delta, 0.05));
+
     time += delta;
     spawnCooldown -= delta;
 
-    // spawn logic, avoids blocking all lanes
-    const spawnInterval = Math.max(0.5, 1.6 - time * 0.01);
     if (spawnCooldown <= 0) {
-      spawnCooldown = spawnInterval;
+      spawnCooldown = Math.max(0.55, 1.6 - time * 0.008);
 
-      // choose pattern
       const lane = Math.floor(Math.random() * 3);
       const roll = Math.random();
-      let kind = 'barrier';
-      if (roll > 0.74) kind = 'sign';
-      if (roll > 0.9) kind = 'ramp';
-      if (roll > 0.96) kind = 'crate';
+
+      let kind = "barrier";
+
+      if (roll > 0.72) kind = "sign";
+      if (roll > 0.88) kind = "ramp";
+      if (roll > 0.96) kind = "crate";
 
       spawnObstacle(kind, lane, -60 - Math.random() * 20);
 
-      // sometimes spawn a ring nearby but not covering all lanes
+      // Collectibles can appear in a different lane.
       if (Math.random() > 0.36) {
-        const rlane = Math.floor(Math.random() * 3);
-        spawnRing(rlane, -48 - Math.random() * 18);
+        const ringLane = Math.floor(Math.random() * 3);
+        spawnRing(ringLane, -48 - Math.random() * 18);
       }
     }
 
-    // move actors forward relative to player
     for (let i = actors.length - 1; i >= 0; i--) {
-      const a = actors[i];
-      const vel = (a.speed !== undefined) ? a.speed : speed;
-      a.mesh.position.z += vel * delta * 1.6;
+      const actor = actors[i];
+      const mesh = actor.mesh;
 
-      if (a.kind === 'ring') {
-        a.mesh.rotation.z += delta * 3.2;
-        a.mesh.rotation.y += delta * 2.1;
+      if (!mesh) {
+        actors.splice(i, 1);
+        continue;
       }
 
-      if (a.mesh.position.z > 20) {
-        // remove
-        if (a.mesh.parent) a.mesh.parent.remove(a.mesh);
+      const velocity =
+        actor.speed !== undefined ? actor.speed : speed;
+
+      mesh.position.z += velocity * delta * 1.6;
+
+      if (actor.kind === "ring") {
+        mesh.rotation.z += delta * 3.2;
+        mesh.rotation.y += delta * 2.1;
+      }
+
+      // Remove objects after they pass the player.
+      if (mesh.position.z > 20) {
+        if (mesh.parent) mesh.parent.remove(mesh);
         actors.splice(i, 1);
       }
     }
   }
 
   function dispose() {
+    if (disposed) return;
+
     clearAll();
-    // dispose geoms & mats
-    Object.values(geoms).forEach(g => { try { g.dispose?.(); } catch (e) {} });
-    Object.values(mats).forEach(m => { try { m.dispose?.(); } catch (e) {} });
+
+    scene.remove(staticGroup);
+    scene.remove(skyline);
+    scene.remove(sun);
+
+    geoms.building.dispose();
+    geoms.glow.dispose();
+
+    // Shared scene objects
+    geoms.ground.dispose();
+    geoms.road.dispose();
+    geoms.stripe.dispose();
+    geoms.ring.dispose();
+    geoms.barrier.dispose();
+    geoms.crate.dispose();
+    geoms.signPole.dispose();
+    geoms.signBox.dispose();
+    geoms.ramp.dispose();
+
+    new THREE.SphereGeometry(1).dispose(); // No persistent geometry created here.
+
+    Object.values(mats).forEach((material) => {
+      material.dispose();
+    });
+
+    sun.geometry.dispose();
+    sun.material.dispose();
+
+    disposed = true;
   }
 
   return {
@@ -194,10 +340,7 @@ export async function createWorld({ THREE, scene }) {
     remove: removeActor,
     clearAll,
     update,
-    disposefunction reset() {
-  clearAll();
-  time = 0;
-  spawnCooldown = 0;
-}
+    reset,
+    dispose
   };
 }
