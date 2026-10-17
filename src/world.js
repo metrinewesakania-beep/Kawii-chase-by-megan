@@ -194,6 +194,10 @@ export async function createWorld({ THREE, scene }) {
     remove: removeActor,
     clearAll,
     update,
-    dispose
+    disposefunction reset() {
+  clearAll();
+  time = 0;
+  spawnCooldown = 0;
+}
   };
 }
