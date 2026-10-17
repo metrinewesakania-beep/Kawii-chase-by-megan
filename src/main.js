@@ -235,7 +235,7 @@ async function boot() {
       }
     };
 
-    engine = GameEngine({
+    engine = new GameEngine({
       THREE,
       scene,
       camera,
