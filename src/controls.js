@@ -1,107 +1,113 @@
 
  // src/controls.js
- // KAWIIS CHASE WITH MEGAN — mobile swipe + double-tap controls
+ // KAWIIS CHASE WITH MEGAN — mobile and keyboard controls
 
 export function createControls({
   onAction,
   onPause,
+  onMove,
   elements = {}
 } = {}) {
   if (typeof onAction !== "function") {
     throw new Error("createControls requires onAction(callback)");
   }
 
-  const listeners = [];
+  const removers = [];
   const held = { left: false, right: false };
-  const locked = {
-    jump: false,
-    slide: false,
-    trick: false
-  };
+  const locked = { jump: false, slide: false, trick: false };
 
-  let lastTapTime = 0;
+  const canvas = document.querySelector("#glcanvas");
+  const SWIPE = 35;
+  const DOUBLE_TAP = 320;
+
   let startX = 0;
   let startY = 0;
   let startTime = 0;
-  let activePointerId = null;
+  let pointerId = null;
+  let lastTap = 0;
 
-  const SWIPE_THRESHOLD = 35;
-  const MAX_GESTURE_MS = 700;
-  const DOUBLE_TAP_MS = 320;
+  function emit(action) {
+    onAction(action);
+  }
 
-  function safeCall(callback, value) {
-    try {
-      if (typeof callback === "function") callback(value);
-    } catch (error) {
-      console.error("Control callback failed:", error);
+  function emitMove() {
+    const horizontal =
+      (held.right ? 1 : 0) - (held.left ? 1 : 0);
+
+    if (typeof onMove === "function") {
+      onMove(horizontal, 0);
     }
   }
 
-  function listen(target, type, handler, options) {
+  function listen(target, type, fn, options) {
     if (!target) return;
-
-    target.addEventListener(type, handler, options);
-    listeners.push(() => {
-      target.removeEventListener(type, handler, options);
-    });
-  }
-
-  function isUI(target) {
-    return !!target?.closest?.(
-      "button, input, select, textarea, a, #mobile-controls"
+    target.addEventListener(type, fn, options);
+    removers.push(() =>
+      target.removeEventListener(type, fn, options)
     );
   }
 
-  function bindButton(element, action, repeatable = false) {
+  function press(action) {
+    if (action === "left" || action === "right") {
+      if (!held[action]) {
+        held[action] = true;
+        emit(action);
+        emitMove();
+      }
+      return;
+    }
+
+    if (!locked[action]) {
+      locked[action] = true;
+      emit(action);
+    }
+  }
+
+  function release(action) {
+    if (action === "left" || action === "right") {
+      held[action] = false;
+      emitMove();
+    } else {
+      locked[action] = false;
+    }
+  }
+
+  function bindButton(element, action) {
     if (!element) return;
 
-    const down = event => {
+    listen(element, "pointerdown", event => {
       if (event.cancelable) event.preventDefault();
+      press(action);
+    }, { passive: false });
 
-      if (repeatable) {
-        if (!held[action]) {
-          held[action] = true;
-          safeCall(onAction, action);
-        }
-      } else if (!locked[action]) {
-        locked[action] = true;
-        safeCall(onAction, action);
-      }
-    };
-
-    const up = () => {
-      if (repeatable) held[action] = false;
-      else locked[action] = false;
-    };
-
-    listen(element, "pointerdown", down, { passive: false });
-    listen(element, "pointerup", up);
-    listen(element, "pointercancel", up);
-    listen(element, "pointerleave", up);
+    for (const type of [
+      "pointerup", "pointercancel", "pointerleave"
+    ]) {
+      listen(element, type, () => release(action));
+    }
 
     listen(element, "keydown", event => {
       if (event.key === "Enter" || event.key === " ") {
-        down(event);
+        event.preventDefault();
+        press(action);
       }
     });
 
-    listen(element, "keyup", up);
+    listen(element, "keyup", () => release(action));
   }
 
-  // Existing on-screen buttons.
-  bindButton(elements.left, "left", true);
-  bindButton(elements.right, "right", true);
+  bindButton(elements.left, "left");
+  bindButton(elements.right, "right");
   bindButton(elements.jump, "jump");
   bindButton(elements.slide, "slide");
   bindButton(elements.trick, "trick");
 
-  // Keyboard controls.
-  function onKeyDown(event) {
-    const key = (event.key || "").toLowerCase();
+  function keyDown(event) {
+    const key = event.key.toLowerCase();
 
     if (key === "p" || event.code === "Escape") {
       event.preventDefault();
-      safeCall(onPause);
+      onPause?.();
       return;
     }
 
@@ -112,165 +118,122 @@ export function createControls({
       ArrowDown: "slide"
     };
 
-    const action =
-      actions[event.code] ||
-      ({
-        a: "left",
-        d: "right",
-        w: "jump",
-        s: "slide",
-        " ": "jump",
-        t: "trick",
-        e: "trick"
-      })[key];
+    const action = actions[event.code] || ({
+      a: "left",
+      d: "right",
+      w: "jump",
+      s: "slide",
+      " ": "jump",
+      t: "trick",
+      e: "trick"
+    })[key];
 
     if (!action) return;
-
     event.preventDefault();
-
-    if (action === "left" || action === "right") {
-      if (!held[action]) {
-        held[action] = true;
-        safeCall(onAction, action);
-      }
-    } else if (!locked[action]) {
-      locked[action] = true;
-      safeCall(onAction, action);
-    }
+    press(action);
   }
 
-  function onKeyUp(event) {
-    const key = (event.key || "").toLowerCase();
+  function keyUp(event) {
+    const key = event.key.toLowerCase();
 
     if (key === "a" || event.code === "ArrowLeft") {
-      held.left = false;
+      release("left");
     }
-
     if (key === "d" || event.code === "ArrowRight") {
-      held.right = false;
+      release("right");
     }
-
-    if (
-      key === " " || key === "w" ||
-      event.code === "ArrowUp"
-    ) locked.jump = false;
-
-    if (
-      key === "s" ||
-      event.code === "ArrowDown"
-    ) locked.slide = false;
-
-    if (key === "t" || key === "e") {
-      locked.trick = false;
+    if (key === "w" || key === " " ||
+        event.code === "ArrowUp") release("jump");
+    if (key === "s" || event.code === "ArrowDown") {
+      release("slide");
     }
+    if (key === "t" || key === "e") release("trick");
   }
 
-  listen(window, "keydown", onKeyDown, { passive: false });
-  listen(window, "keyup", onKeyUp);
+  listen(window, "keydown", keyDown, { passive: false });
+  listen(window, "keyup", keyUp);
 
-  // Touchscreen and mouse gestures through Pointer Events.
-  const canvas = document.querySelector("#glcanvas");
+  function isUI(target) {
+    return !!target?.closest?.(
+      "button, input, select, textarea, a, #mobile-controls"
+    );
+  }
 
-  function onPointerDown(event) {
-    if (isUI(event.target)) {
-      lastTapTime = 0;
-      return;
-    }
+  function pointerDown(event) {
+    if (isUI(event.target) || pointerId !== null) return;
 
-    if (activePointerId !== null) return;
-
-    activePointerId = event.pointerId;
+    pointerId = event.pointerId;
     startX = event.clientX;
     startY = event.clientY;
     startTime = performance.now();
-
-    try {
-      canvas?.setPointerCapture?.(event.pointerId);
-    } catch (_) {}
   }
 
-  function onPointerUp(event) {
-    if (event.pointerId !== activePointerId) return;
+  function pointerUp(event) {
+    if (event.pointerId !== pointerId) return;
 
     const dx = event.clientX - startX;
     const dy = event.clientY - startY;
     const duration = performance.now() - startTime;
+    pointerId = null;
 
-    activePointerId = null;
-
-    if (duration > MAX_GESTURE_MS) {
-      lastTapTime = 0;
+    if (duration > 700) {
+      lastTap = 0;
       return;
     }
 
-    // Horizontal swipe: change lanes.
-    if (
-      Math.abs(dx) > SWIPE_THRESHOLD &&
-      Math.abs(dx) > Math.abs(dy)
-    ) {
-      lastTapTime = 0;
-      safeCall(onAction, dx < 0 ? "left" : "right");
+    if (Math.abs(dx) > SWIPE &&
+        Math.abs(dx) > Math.abs(dy)) {
+      lastTap = 0;
+      emit(dx < 0 ? "left" : "right");
       return;
     }
 
-    // Vertical swipe: jump or slide.
-    if (
-      Math.abs(dy) > SWIPE_THRESHOLD &&
-      Math.abs(dy) > Math.abs(dx)
-    ) {
-      lastTapTime = 0;
-      safeCall(onAction, dy < 0 ? "jump" : "slide");
+    if (Math.abs(dy) > SWIPE &&
+        Math.abs(dy) > Math.abs(dx)) {
+      lastTap = 0;
+      emit(dy < 0 ? "jump" : "slide");
       return;
     }
 
-    // Two quick taps activate the charged power-up.
-    if (
-      Math.abs(dx) < 20 &&
-      Math.abs(dy) < 20
-    ) {
+    if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
       const now = performance.now();
 
-      if (lastTapTime && now - lastTapTime <= DOUBLE_TAP_MS) {
-        lastTapTime = 0;
-        safeCall(onAction, "powerup");
+      if (lastTap && now - lastTap <= DOUBLE_TAP) {
+        lastTap = 0;
+        emit("powerup");
       } else {
-        lastTapTime = now;
+        lastTap = now;
       }
     }
   }
 
-  function onPointerCancel(event) {
-    if (event.pointerId === activePointerId) {
-      activePointerId = null;
-      lastTapTime = 0;
-    }
+  function pointerCancel() {
+    pointerId = null;
+    lastTap = 0;
   }
 
   if (canvas) {
-    listen(canvas, "pointerdown", onPointerDown, {
-      passive: false
-    });
-    listen(canvas, "pointerup", onPointerUp);
-    listen(canvas, "pointercancel", onPointerCancel);
+    listen(canvas, "pointerdown", pointerDown);
+    listen(canvas, "pointerup", pointerUp);
+    listen(canvas, "pointercancel", pointerCancel);
 
-    const previousTouchAction = canvas.style.touchAction;
+    const oldTouchAction = canvas.style.touchAction;
     canvas.style.touchAction = "none";
 
-    listeners.push(() => {
-      canvas.style.touchAction = previousTouchAction;
+    removers.push(() => {
+      canvas.style.touchAction = oldTouchAction;
     });
   }
 
   function clearHeld() {
     held.left = false;
     held.right = false;
-
     locked.jump = false;
     locked.slide = false;
     locked.trick = false;
-
-    activePointerId = null;
-    lastTapTime = 0;
+    pointerId = null;
+    lastTap = 0;
+    emitMove();
   }
 
   listen(window, "blur", clearHeld);
@@ -280,12 +243,7 @@ export function createControls({
 
   function dispose() {
     clearHeld();
-
-    for (const remove of listeners.splice(0)) {
-      try {
-        remove();
-      } catch (_) {}
-    }
+    for (const remove of removers.splice(0)) remove();
   }
 
   return { dispose };
