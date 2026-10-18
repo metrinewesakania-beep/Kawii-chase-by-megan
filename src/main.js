@@ -29,6 +29,7 @@ let buttonsBound = false;
 let previousTime = 0;
 let steering = 0;
 let powerupTime = 0;
+let powerupTimeout = null;
 
 function hide(element) {
   if (element) element.hidden = true;
@@ -58,7 +59,7 @@ function saveBest(score) {
       String(Math.max(readBest(), Math.floor(Number(score) || 0)))
     );
   } catch {
-    // Storage is optional.
+    // Local storage may be unavailable.
   }
 }
 
@@ -68,7 +69,7 @@ function showError(error) {
 
   if (errorPanel) {
     errorPanel.textContent =
-      "Unable to load the game. Check your connection and refresh. Error: " +
+      "Unable to load the game. Refresh the page and try again. " +
       String(error?.message || error);
     show(errorPanel);
   }
@@ -133,8 +134,6 @@ function setupScene() {
   const pink = new THREE.PointLight(0xff35cb, 18, 45);
   pink.position.set(5, 4, -28);
   scene.add(pink);
-
-  return scene;
 }
 
 function resize() {
@@ -154,7 +153,9 @@ function updateHud() {
   if (!engine) return;
 
   setText("score-val", Math.floor(engine.score || 0));
-  setText("best-val", Math.floor(engine.best || 0));
+
+  // Display infinity for the high-score label.
+  setText("best-val", "∞");
 
   const fill = $("chaser-fill");
   if (fill) {
@@ -162,10 +163,12 @@ function updateHud() {
       `${Math.max(0, Math.min(100, engine.chase || 0))}%`;
   }
 
-  const tokenElement = $("tokens-val");
-  if (tokenElement) {
-    tokenElement.textContent = String(engine.tokens || 0);
-  }
+  setText("tokens-val", engine.tokens || 0);
+}
+
+function stopPlayer() {
+  steering = 0;
+  player?.move?.(0, 0);
 }
 
 function startGame() {
@@ -177,11 +180,10 @@ function startGame() {
   show(hud);
   show(mobileControls);
 
-  steering = 0;
+  stopPlayer();
   powerupTime = 0;
 
   engine.start();
-  player?.move?.(0, 1);
   updateHud();
 }
 
@@ -193,11 +195,10 @@ function restartGame() {
   show(hud);
   show(mobileControls);
 
-  steering = 0;
+  stopPlayer();
   powerupTime = 0;
 
   engine.restart();
-  player?.move?.(0, 1);
   updateHud();
 }
 
@@ -205,12 +206,23 @@ function togglePause() {
   if (!engine) return;
 
   if (engine.state === "playing") {
+    stopPlayer();
     engine.pause();
     showMessage("PAUSED", "Resume when you're ready.");
   } else if (engine.state === "paused") {
     engine.resume();
     hideMessage();
   }
+}
+
+function temporaryMessage(title, body) {
+  showMessage(title, body, { showResume: false });
+
+  if (powerupTimeout) clearTimeout(powerupTimeout);
+
+  powerupTimeout = setTimeout(() => {
+    if (engine?.state === "playing") hideMessage();
+  }, 1400);
 }
 
 function handleAction(action) {
@@ -243,37 +255,25 @@ function handleAction(action) {
       if (engine.tokens >= 5 && powerupTime <= 0) {
         engine.tokens -= 5;
         powerupTime = 5;
+
+        // Temporary collision protection.
         engine.invulnerable = Math.max(engine.invulnerable, 5);
-        showMessage(
+
+        temporaryMessage(
           "POWER-UP ACTIVATED!",
-          "Speed boost and temporary protection for 5 seconds.",
-          { showResume: false }
+          "Temporary protection activated!"
         );
-
-        // Hide the message shortly afterward using a tracked timeout.
-        if (powerupTimeout) clearTimeout(powerupTimeout);
-        powerupTimeout = setTimeout(() => {
-          if (engine?.state === "playing") hideMessage();
-        }, 1200);
       } else if (engine.tokens < 5) {
-        showMessage(
+        temporaryMessage(
           "NOT ENOUGH RINGS",
-          "Collect 5 rings before activating a power-up.",
-          { showResume: false }
+          "Collect 5 rings to activate a power-up."
         );
-
-        if (powerupTimeout) clearTimeout(powerupTimeout);
-        powerupTimeout = setTimeout(() => {
-          if (engine?.state === "playing") hideMessage();
-        }, 1200);
       }
       break;
   }
 
   updateHud();
 }
-
-let powerupTimeout = null;
 
 function bindButtons() {
   if (buttonsBound) return;
@@ -293,26 +293,22 @@ function bindButtons() {
   $("help-btn")?.addEventListener("click", () => {
     showMessage(
       "HOW TO PLAY",
-      "Steer left and right. Swipe up to jump and down to crouch. " +
-      "Perform tricks while airborne. Collect 5 rings, then double-tap " +
-      "the game area for a temporary power-up."
+      "Hold a movement control to skate. Release it to slow down. " +
+      "Steer left and right, swipe up to jump, swipe down to crouch, " +
+      "and collect rings for power-ups."
     );
   });
-
-  errorPanel?.addEventListener("click", () => window.location.reload());
 }
 
 function updateCamera(delta) {
   if (!camera || !player) return;
 
-  // Follow the skater from behind using their current heading.
   const heading = player.group.rotation.y;
   const distance = 8;
-  const height = 4.2;
 
   const targetPosition = new THREE.Vector3(
     player.group.position.x - Math.sin(heading) * distance,
-    player.group.position.y + height,
+    player.group.position.y + 4.2,
     player.group.position.z - Math.cos(heading) * distance
   );
 
@@ -357,8 +353,9 @@ async function boot() {
       saveBest,
 
       setScore: score => setText("score-val", Math.floor(score)),
-      setBest: best => setText("best-val", Math.floor(best)),
-      setDistance: distance => setText("distance-val", Math.floor(distance)),
+      setBest: () => setText("best-val", "∞"),
+      setDistance: distance =>
+        setText("distance-val", Math.floor(distance)),
       setTokens: tokens => setText("tokens-val", tokens),
 
       setChase: chase => {
@@ -372,16 +369,9 @@ async function boot() {
       showMessage,
       hideMessage,
 
-      onGameOver: score => {
-        showMessage(
-          "CHASE OVER",
-          `Final score: ${Math.floor(score)}`,
-          { showResume: false }
-        );
-      },
-
       onStateChange: state => {
         if (state === "playing") hideMessage();
+        if (state !== "playing") stopPlayer();
       }
     };
 
@@ -399,10 +389,17 @@ async function boot() {
       onAction: handleAction,
       onPause: togglePause,
 
-      onMove: (horizontal) => {
+      // Forward movement happens only while a direction button is held.
+      onMove: horizontal => {
         steering = horizontal;
+
         if (engine?.state === "playing") {
-          player?.move?.(steering, 1);
+          player?.move?.(
+            horizontal,
+            horizontal === 0 ? 0 : 1
+          );
+        } else {
+          player?.move?.(0, 0);
         }
       },
 
@@ -431,16 +428,10 @@ async function boot() {
       previousTime = time;
 
       if (engine?.state === "playing") {
-        player?.move?.(steering, 1);
         engine.update(delta);
 
         if (powerupTime > 0) {
           powerupTime = Math.max(0, powerupTime - delta);
-        }
-
-        // Extra forward speed while the boost is active.
-        if (powerupTime > 0 && player) {
-          player.move(steering, 1);
         }
 
         updateCamera(delta);
@@ -456,6 +447,7 @@ async function boot() {
 
 window.addEventListener("pagehide", () => {
   disposed = true;
+
   window.removeEventListener("resize", resize);
 
   if (powerupTimeout) clearTimeout(powerupTimeout);
