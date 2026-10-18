@@ -1,40 +1,32 @@
 
- // src/player.js — KAWIIS CHASE WITH MEGAN
- // Upgraded skater, detailed board, animated limbs and visual crash.
- // Compatible with the existing Three.js game API.
+ // src/player.js
+ // KAWIIS CHASE WITH MEGAN — enhanced free-skating player
+ // Keeps the existing player API and adds free movement and turning.
 
 export function createPlayer({ THREE, scene }) {
   const group = new THREE.Group();
   group.name = "MeganSkater";
   scene.add(group);
 
-  const makeMat = (color, roughness = 0.65, metalness = 0.05, emissive = 0) =>
-    new THREE.MeshStandardMaterial({
-      color,
-      roughness,
-      metalness,
-      emissive,
-      emissiveIntensity: emissive ? 1.2 : 0
-    });
+  const material = (color, roughness = 0.55, metalness = 0.08) =>
+    new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
-  const mat = {
-    hoodie: makeMat(0x5728a8),
-    hoodieLight: makeMat(0x9664ef),
-    pants: makeMat(0x202638),
-    skin: makeMat(0xb97c5c),
-    shoes: makeMat(0xf2f4fa, 0.48),
-    cyan: makeMat(0x32e9ff, 0.32, 0.35, 0x087caa),
-    dark: makeMat(0x11131d),
-    deck: makeMat(0x292039, 0.38, 0.22),
-    grip: makeMat(0x171722, 0.95),
-    rubber: makeMat(0x080a10, 0.85),
-    metal: makeMat(0x9aa8b8, 0.28, 0.8),
-    eye: makeMat(0x5df4ff, 0.25, 0.15, 0x19bddd),
-    accent: makeMat(0xff4ecb, 0.35, 0.15, 0x901060)
+  const mats = {
+    hoodie: material(0x6428b8),
+    purple: material(0xa36cff),
+    pants: material(0x202638),
+    skin: material(0xb97c5c),
+    shoes: material(0xf4f5ff),
+    cyan: material(0x32e9ff, 0.3, 0.3),
+    pink: material(0xff4ecb, 0.35, 0.2),
+    dark: material(0x11131d),
+    deck: material(0x292039),
+    rubber: material(0x080a10, 0.8),
+    metal: material(0x9aa8b8, 0.25, 0.7)
   };
 
-  function part(parent, geometry, material, x = 0, y = 0, z = 0) {
-    const object = new THREE.Mesh(geometry, material);
+  function mesh(parent, geometry, mat, x = 0, y = 0, z = 0) {
+    const object = new THREE.Mesh(geometry, mat);
     object.position.set(x, y, z);
     object.castShadow = true;
     object.receiveShadow = true;
@@ -42,150 +34,132 @@ export function createPlayer({ THREE, scene }) {
     return object;
   }
 
-  function box(parent, material, size, pos) {
-    return part(
+  function box(parent, mat, size, pos) {
+    return mesh(
       parent,
-      new THREE.BoxGeometry(size[0], size[1], size[2]),
-      material,
-      pos[0], pos[1], pos[2]
+      new THREE.BoxGeometry(...size),
+      mat,
+      ...pos
     );
   }
 
-  function sphere(parent, material, radius, pos, segments = 16) {
-    return part(
+  function ball(parent, mat, radius, pos) {
+    return mesh(
       parent,
-      new THREE.SphereGeometry(radius, segments, 12),
-      material,
-      pos[0], pos[1], pos[2]
+      new THREE.SphereGeometry(radius, 16, 12),
+      mat,
+      ...pos
     );
   }
 
-  // Rounded limb segment, aligned vertically.
-  function segment(parent, material, radius, length, pos) {
+  function limb(parent, mat, radius, length, pos) {
     const pivot = new THREE.Group();
-    pivot.position.set(pos[0], pos[1], pos[2]);
+    pivot.position.set(...pos);
     parent.add(pivot);
 
-    part(
+    mesh(
       pivot,
-      new THREE.CylinderGeometry(radius * 0.94, radius, length, 14),
-      material,
-      0, -length / 2, 0
+      new THREE.CylinderGeometry(radius * 0.85, radius, length, 12),
+      mat,
+      0,
+      -length / 2,
+      0
     );
 
-    sphere(pivot, material, radius, [0, 0, 0], 14);
+    ball(pivot, mat, radius, [0, 0, 0]);
     return pivot;
   }
 
-  // --------------------------------------------------
   // SKATEBOARD
-  // --------------------------------------------------
-
   const board = new THREE.Group();
   board.name = "Skateboard";
   group.add(board);
 
-  box(board, mat.deck, [0.91, 0.09, 1.96], [0, 0.22, 0]);
-  box(board, mat.grip, [0.79, 0.025, 1.68], [0, 0.278, 0]);
+  box(board, mats.deck, [0.9, 0.08, 1.95], [0, 0.22, 0]);
+  box(board, mats.dark, [0.78, 0.025, 1.68], [0, 0.275, 0]);
 
-  // Bright deck rails.
   for (const x of [-0.405, 0.405]) {
-    box(board, mat.cyan, [0.022, 0.026, 1.48], [x, 0.292, 0]);
+    box(board, mats.cyan, [0.025, 0.025, 1.5], [x, 0.29, 0]);
   }
 
-  // Small deck graphics.
-  box(board, mat.accent, [0.24, 0.025, 0.4], [0, 0.296, 0.02]);
-  box(board, mat.cyan, [0.06, 0.028, 0.65], [0, 0.298, 0.02]);
+  box(board, mats.pink, [0.23, 0.025, 0.4], [0, 0.29, 0]);
 
-  // Trucks, axles, wheels and hubs.
   const wheels = [];
 
-  for (const z of [-0.61, 0.61]) {
-    box(board, mat.metal, [0.59, 0.055, 0.12], [0, 0.15, z]);
+  for (const z of [-0.62, 0.62]) {
+    box(board, mats.metal, [0.56, 0.045, 0.12], [0, 0.15, z]);
 
     for (const x of [-0.4, 0.4]) {
-      const wheel = part(
+      const wheel = mesh(
         board,
-        new THREE.CylinderGeometry(0.12, 0.12, 0.105, 20),
-        mat.rubber,
-        x, 0.105, z
+        new THREE.CylinderGeometry(0.12, 0.12, 0.1, 18),
+        mats.rubber,
+        x,
+        0.1,
+        z
       );
 
       wheel.rotation.z = Math.PI / 2;
       wheels.push(wheel);
 
-      const hub = part(
+      const hub = mesh(
         board,
-        new THREE.CylinderGeometry(0.047, 0.047, 0.11, 16),
-        mat.cyan,
-        x, 0.105, z
+        new THREE.CylinderGeometry(0.045, 0.045, 0.105, 12),
+        mats.cyan,
+        x,
+        0.1,
+        z
       );
 
       hub.rotation.z = Math.PI / 2;
     }
   }
 
-  // --------------------------------------------------
   // SKATER BODY
-  // --------------------------------------------------
-
   const body = new THREE.Group();
   body.name = "SkaterBody";
   group.add(body);
 
-  // Torso.
-  const torso = part(
+  const torso = mesh(
     body,
-    new THREE.CapsuleGeometry(0.31, 0.48, 5, 16),
-    mat.hoodie,
-    0, 1.62, 0
+    new THREE.CapsuleGeometry(0.3, 0.48, 5, 14),
+    mats.hoodie,
+    0,
+    1.62,
+    0
   );
+  torso.scale.set(1.08, 1.1, 0.8);
 
-  torso.scale.set(1.08, 1.12, 0.78);
+  box(body, mats.purple, [0.43, 0.1, 0.04], [0, 1.82, 0.24]);
+  box(body, mats.cyan, [0.035, 0.36, 0.025], [0, 1.58, 0.25]);
 
-  // Jacket details and front zipper.
-  box(body, mat.hoodieLight, [0.46, 0.11, 0.035], [0, 1.82, 0.244]);
-  box(body, mat.dark, [0.035, 0.39, 0.025], [0, 1.57, 0.25]);
-  box(body, mat.cyan, [0.12, 0.035, 0.025], [0, 1.39, 0.26]);
+  const hood = ball(body, mats.purple, 0.27, [0, 2.13, -0.06]);
+  hood.scale.set(1.05, 1.05, 0.9);
 
-  // Hood behind the head.
-  const hood = sphere(body, mat.hoodieLight, 0.285, [0, 2.16, -0.065], 20);
-  hood.scale.set(1.06, 1.05, 0.9);
+  ball(body, mats.skin, 0.22, [0, 2.19, 0.04]);
 
-  // Head and hair/cap silhouette.
-  sphere(body, mat.skin, 0.225, [0, 2.19, 0.04], 22);
+  const hair = ball(body, mats.dark, 0.235, [0, 2.31, -0.035]);
+  hair.scale.set(1.04, 0.62, 0.92);
 
-  const hair = sphere(body, mat.dark, 0.237, [0, 2.32, -0.035], 20);
-  hair.scale.set(1.03, 0.62, 0.94);
-
-  // Visor and stylized glowing eye strip.
-  box(body, mat.dark, [0.29, 0.06, 0.035], [0, 2.19, 0.25]);
-  box(body, mat.eye, [0.085, 0.022, 0.018], [-0.071, 2.195, 0.273]);
-  box(body, mat.eye, [0.085, 0.022, 0.018], [0.071, 2.195, 0.273]);
-
-  // --------------------------------------------------
-  // ARMS WITH ANIMATED PIVOTS
-  // --------------------------------------------------
+  box(body, mats.dark, [0.29, 0.06, 0.035], [0, 2.19, 0.25]);
+  box(body, mats.cyan, [0.075, 0.02, 0.02], [-0.07, 2.19, 0.275]);
+  box(body, mats.cyan, [0.075, 0.02, 0.02], [0.07, 2.19, 0.275]);
 
   const leftArm = new THREE.Group();
-  leftArm.position.set(-0.35, 1.86, 0);
+  leftArm.position.set(-0.35, 1.85, 0);
   body.add(leftArm);
 
   const rightArm = new THREE.Group();
-  rightArm.position.set(0.35, 1.86, 0);
+  rightArm.position.set(0.35, 1.85, 0);
   body.add(rightArm);
 
-  segment(leftArm, mat.hoodieLight, 0.105, 0.34, [0, -0.04, 0]);
-  segment(leftArm, mat.hoodie, 0.08, 0.3, [0, -0.36, 0.015]);
-  sphere(leftArm, mat.skin, 0.082, [0, -0.56, 0.02], 14);
+  limb(leftArm, mats.purple, 0.1, 0.34, [0, -0.04, 0]);
+  limb(leftArm, mats.hoodie, 0.08, 0.3, [0, -0.36, 0.02]);
+  ball(leftArm, mats.skin, 0.08, [0, -0.56, 0.02]);
 
-  segment(rightArm, mat.hoodieLight, 0.105, 0.34, [0, -0.04, 0]);
-  segment(rightArm, mat.hoodie, 0.08, 0.3, [0, -0.36, 0.015]);
-  sphere(rightArm, mat.skin, 0.082, [0, -0.56, 0.02], 14);
-
-  // --------------------------------------------------
-  // LEGS AND SHOES
-  // --------------------------------------------------
+  limb(rightArm, mats.purple, 0.1, 0.34, [0, -0.04, 0]);
+  limb(rightArm, mats.hoodie, 0.08, 0.3, [0, -0.36, 0.02]);
+  ball(rightArm, mats.skin, 0.08, [0, -0.56, 0.02]);
 
   const leftLeg = new THREE.Group();
   leftLeg.position.set(-0.17, 1.19, 0);
@@ -195,23 +169,17 @@ export function createPlayer({ THREE, scene }) {
   rightLeg.position.set(0.17, 1.19, 0);
   body.add(rightLeg);
 
-  segment(leftLeg, mat.pants, 0.115, 0.39, [0, -0.06, 0]);
-  segment(leftLeg, mat.pants, 0.09, 0.31, [0, -0.4, 0.015]);
+  limb(leftLeg, mats.pants, 0.11, 0.39, [0, -0.06, 0]);
+  limb(leftLeg, mats.pants, 0.09, 0.31, [0, -0.4, 0.02]);
+  limb(rightLeg, mats.pants, 0.11, 0.39, [0, -0.06, 0]);
+  limb(rightLeg, mats.pants, 0.09, 0.31, [0, -0.4, 0.02]);
 
-  segment(rightLeg, mat.pants, 0.115, 0.39, [0, -0.06, 0]);
-  segment(rightLeg, mat.pants, 0.09, 0.31, [0, -0.4, 0.015]);
+  box(leftLeg, mats.shoes, [0.25, 0.14, 0.38], [0, -0.65, 0.09]);
+  box(rightLeg, mats.shoes, [0.25, 0.14, 0.38], [0, -0.65, 0.09]);
+  box(leftLeg, mats.cyan, [0.2, 0.025, 0.12], [0, -0.58, 0.19]);
+  box(rightLeg, mats.cyan, [0.2, 0.025, 0.12], [0, -0.58, 0.19]);
 
-  // Sneakers.
-  box(leftLeg, mat.shoes, [0.25, 0.14, 0.39], [0, -0.65, 0.09]);
-  box(rightLeg, mat.shoes, [0.25, 0.14, 0.39], [0, -0.65, 0.09]);
-
-  box(leftLeg, mat.cyan, [0.22, 0.03, 0.14], [0, -0.58, 0.19]);
-  box(rightLeg, mat.cyan, [0.22, 0.03, 0.14], [0, -0.58, 0.19]);
-
-  // --------------------------------------------------
-  // GAME STATE
-  // --------------------------------------------------
-
+  // MOVEMENT AND ANIMATION STATE
   const lanes = [-3.2, 0, 3.2];
 
   let lane = 1;
@@ -219,11 +187,21 @@ export function createPlayer({ THREE, scene }) {
   let jumpHeight = 0;
   let slideTimer = 0;
   let trickTimer = 0;
-  let trickCount = 0;
   let elapsed = 0;
-  let crashTimer = 0;
   let crashed = false;
+  let crashTimer = 0;
   let disposed = false;
+
+  let steer = 0;
+  let throttle = 0;
+  let targetYaw = 0;
+  let speed = 0;
+
+  const maxSpeed = 12;
+  const acceleration = 18;
+  const braking = 22;
+  const steeringSpeed = 1.9;
+  const damping = 3.5;
 
   function setLane(direction) {
     if (crashed) return;
@@ -233,41 +211,52 @@ export function createPlayer({ THREE, scene }) {
       0,
       lanes.length - 1
     );
+
+    // Compatible with the original three-lane controls.
+    targetYaw = -Math.sign(direction) * 0.12;
+  }
+
+  // New free-movement API. Call move(-1/1) to steer
+  // or move(0, -1/1) to brake/accelerate.
+  function move(horizontal = 0, forward = 0) {
+    if (crashed) return;
+    steer = THREE.MathUtils.clamp(horizontal, -1, 1);
+    throttle = THREE.MathUtils.clamp(forward, -1, 1);
+  }
+
+  function turn(direction) {
+    if (crashed) return;
+    targetYaw += THREE.MathUtils.clamp(direction, -1, 1) * 0.12;
+    targetYaw = THREE.MathUtils.clamp(targetYaw, -1.25, 1.25);
   }
 
   function jump() {
-    if (crashed) return;
-
-    if (jumpHeight <= 0.02 && slideTimer <= 0) {
+    if (!crashed && jumpHeight <= 0.02 && slideTimer <= 0) {
       jumpVelocity = 8.5;
     }
   }
 
   function slide() {
     if (!crashed && jumpHeight <= 0.05) {
-      slideTimer = 0.75;
+      slideTimer = 0.9;
     }
   }
 
   function trick() {
     if (!crashed && jumpHeight > 0.2) {
-      trickTimer = 0.55;
-      trickCount += 1;
+      trickTimer = 0.65;
       return true;
     }
-
     return false;
   }
 
-  // Visual crash animation. This is not a physics simulation.
   function crash() {
     if (crashed) return;
-
     crashed = true;
-    crashTimer = 0.9;
-    jumpVelocity = 0;
-    slideTimer = 0;
-    trickTimer = 0;
+    crashTimer = 1.1;
+    speed = 0;
+    steer = 0;
+    throttle = 0;
   }
 
   function reset() {
@@ -276,8 +265,13 @@ export function createPlayer({ THREE, scene }) {
     jumpHeight = 0;
     slideTimer = 0;
     trickTimer = 0;
+    elapsed = 0;
     crashTimer = 0;
     crashed = false;
+    steer = 0;
+    throttle = 0;
+    targetYaw = 0;
+    speed = 0;
 
     group.position.set(0, 0, 0);
     group.rotation.set(0, 0, 0);
@@ -292,23 +286,57 @@ export function createPlayer({ THREE, scene }) {
     rightLeg.rotation.set(0, 0, 0);
   }
 
-  // --------------------------------------------------
-  // FRAME UPDATE
-  // --------------------------------------------------
-
   function update(delta) {
     const dt = Math.min(Math.max(delta || 0, 0), 0.04);
+    if (disposed) return;
 
     elapsed += dt;
+    slideTimer = Math.max(0, slideTimer - dt);
+    trickTimer = Math.max(0, trickTimer - dt);
 
-    // Smooth lane changes.
     if (!crashed) {
-      group.position.x = THREE.MathUtils.damp(
-        group.position.x,
-        lanes[lane],
-        12,
+      // Accelerate, coast, or brake.
+      if (throttle > 0) {
+        speed = Math.min(maxSpeed, speed + acceleration * throttle * dt);
+      } else if (throttle < 0) {
+        speed = Math.max(0, speed + braking * throttle * dt);
+      } else {
+        speed = Math.max(0, speed - damping * dt);
+      }
+
+      // Free steering and smooth turning.
+      group.rotation.y = THREE.MathUtils.damp(
+        group.rotation.y,
+        targetYaw + steer * 0.32,
+        steeringSpeed,
         dt
       );
+
+      // Movement follows the direction the skater faces.
+      group.position.x += Math.sin(group.rotation.y) * speed * dt;
+      group.position.z += Math.cos(group.rotation.y) * speed * dt;
+
+      // Keep the original lane-based controls usable.
+      if (Math.abs(steer) < 0.01 && Math.abs(targetYaw) < 0.01 && throttle === 0) {
+        group.position.x = THREE.MathUtils.damp(
+          group.position.x,
+          lanes[lane],
+          4,
+          dt
+        );
+      }
+    } else {
+      crashTimer = Math.max(0, crashTimer - dt);
+      const progress = 1 - crashTimer / 1.1;
+
+      body.rotation.z = progress * 1.2;
+      body.rotation.x = -0.45;
+      leftArm.rotation.z = -1.1;
+      rightArm.rotation.z = 1.1;
+      leftLeg.rotation.x = -0.7;
+      rightLeg.rotation.x = 0.7;
+      board.rotation.z = progress * 0.8;
+      board.rotation.x = progress * 0.3;
     }
 
     // Jump physics.
@@ -322,75 +350,50 @@ export function createPlayer({ THREE, scene }) {
       }
     }
 
-    slideTimer = Math.max(0, slideTimer - dt);
-    trickTimer = Math.max(0, trickTimer - dt);
-
     board.position.y = jumpHeight;
     body.position.y = jumpHeight;
 
-    // Board tricks and airborne motion.
-    board.rotation.z = trickTimer > 0
-      ? Math.sin(trickTimer * 18) * 0.2
-      : Math.sin(elapsed * 5) * 0.012;
+    // Crouching while riding.
+    if (!crashed) {
+      body.rotation.x = slideTimer > 0 ? -0.62 : 0;
+      leftArm.rotation.z = slideTimer > 0 ? -0.3 : -0.12;
+      rightArm.rotation.z = slideTimer > 0 ? 0.3 : 0.12;
 
-    board.rotation.x = trickTimer > 0
-      ? Math.sin(trickTimer * 12) * 0.13
-      : 0;
+      // Airborne trick movement.
+      board.rotation.z = trickTimer > 0
+        ? Math.sin(trickTimer * 18) * 0.2
+        : Math.sin(elapsed * 5) * 0.012;
 
-    // Natural skating body movement.
-    body.rotation.x = slideTimer > 0 ? -0.62 : 0;
-    body.rotation.z = Math.sin(elapsed * 2.2) * 0.025;
+      board.rotation.x = trickTimer > 0
+        ? Math.sin(trickTimer * 12) * 0.13
+        : 0;
 
-    leftArm.rotation.z = -0.12 - Math.sin(elapsed * 5) * 0.09;
-    rightArm.rotation.z = 0.12 + Math.sin(elapsed * 5 + 0.7) * 0.09;
+      leftLeg.rotation.x = trickTimer > 0 ? -0.35 : 0;
+      rightLeg.rotation.x = trickTimer > 0 ? 0.35 : 0;
 
-    leftLeg.rotation.x = trickTimer > 0 ? -0.35 : 0;
-    rightLeg.rotation.x = trickTimer > 0 ? 0.35 : 0;
-
-    // Crouch body and arms when sliding.
-    if (slideTimer > 0) {
-      body.rotation.x = -0.62;
-      leftArm.rotation.z = -0.3;
-      rightArm.rotation.z = 0.3;
+      // Lean slightly when steering.
+      body.rotation.z = -steer * 0.12;
     }
 
-    // Crash tumble animation.
-    if (crashed) {
-      crashTimer = Math.max(0, crashTimer - dt);
-
-      const progress = 1 - crashTimer / 0.9;
-
-      body.rotation.z = progress * 1.2;
-      body.rotation.x = -0.45;
-      leftArm.rotation.z = -1.1;
-      rightArm.rotation.z = 1.1;
-      leftLeg.rotation.x = -0.7;
-      rightLeg.rotation.x = 0.7;
-
-      board.rotation.z = progress * 0.85;
-      board.rotation.x = progress * 0.35;
-      group.rotation.z = progress * 0.12;
+    for (const wheel of wheels) {
+      wheel.rotation.x += speed * dt * 2;
     }
   }
 
-  // Clean up when the player is removed.
   function dispose() {
     if (disposed) return;
-
     disposed = true;
     scene.remove(group);
 
-    group.traverse((object) => {
+    group.traverse(object => {
       if (object.geometry) object.geometry.dispose();
 
       if (object.material) {
-        const materials = Array.isArray(object.material)
+        const list = Array.isArray(object.material)
           ? object.material
           : [object.material];
 
-        for (const material of materials) {
-          material.dispose();
-        }
+        for (const mat of list) mat.dispose();
       }
     });
   }
@@ -399,6 +402,8 @@ export function createPlayer({ THREE, scene }) {
     group,
     update,
     setLane,
+    move,
+    turn,
     jump,
     slide,
     trick,
@@ -413,8 +418,8 @@ export function createPlayer({ THREE, scene }) {
       return slideTimer > 0;
     },
 
-    get trickCount() {
-      return trickCount;
+    get speed() {
+      return speed;
     },
 
     dispose
