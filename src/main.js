@@ -1,6 +1,6 @@
 
  // src/main.js — KAWIIS CHASE WITH MEGAN
- // Cinematic intro, 3D city, pedestrians, touch controls and gameplay.
+ // City scrolling, cinematic intro, third-person camera and touch controls.
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 import { createPlayer } from "./player.js";
@@ -65,7 +65,7 @@ function saveBest(score) {
     );
     localStorage.setItem(BEST_KEY, String(best));
   } catch {
-    // The game can still run if storage is unavailable.
+    // Storage is optional.
   }
 }
 
@@ -77,11 +77,9 @@ function showError(error) {
   hide(mobileControls);
 
   if (errorPanel) {
-    setText(
-      "error",
-      "The 3D game could not load. Refresh the page and try again. " +
-      (error?.message || "")
-    );
+    errorPanel.textContent =
+      "The game could not load. Refresh and try again. " +
+      (error?.message || "");
     show(errorPanel);
   }
 }
@@ -100,13 +98,7 @@ function setupRenderer() {
   renderer.setPixelRatio(
     Math.min(window.devicePixelRatio || 1, 1.5)
   );
-
-  renderer.setSize(
-    window.innerWidth,
-    window.innerHeight,
-    false
-  );
-
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.setClearColor(0x100b26, 1);
 }
@@ -123,14 +115,9 @@ function setupScene() {
     600
   );
 
-  camera.position.set(0, 15, 30);
+  camera.position.set(0, 12, 18);
 
-  const skyLight = new THREE.HemisphereLight(
-    0xc4eaff,
-    0x29203c,
-    2.1
-  );
-  scene.add(skyLight);
+  scene.add(new THREE.HemisphereLight(0xc4eaff, 0x29203c, 2.1));
 
   const sun = new THREE.DirectionalLight(0xffd2a1, 2.6);
   sun.position.set(-12, 20, 10);
@@ -151,12 +138,7 @@ function resize() {
   renderer.setPixelRatio(
     Math.min(window.devicePixelRatio || 1, 1.5)
   );
-
-  renderer.setSize(
-    window.innerWidth,
-    window.innerHeight,
-    false
-  );
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
 
   camera.aspect =
     window.innerWidth / Math.max(1, window.innerHeight);
@@ -168,14 +150,10 @@ function updateHud() {
   if (!engine) return;
 
   setText("score-val", Math.floor(engine.score || 0));
-
-  // Infinite high-score display, as requested.
   setText("best-val", "∞");
-
   setText("tokens-val", engine.tokens || 0);
 
   const fill = $("chaser-fill");
-
   if (fill) {
     fill.style.width =
       `${Math.max(0, Math.min(100, engine.chase || 0))}%`;
@@ -214,9 +192,9 @@ function createCinematicOverlay() {
     textAlign: "center",
     padding: "24px",
     pointerEvents: "none",
-    color: "#ffffff",
+    color: "#fff",
     background:
-      "linear-gradient(180deg, rgba(5,7,22,.12), rgba(5,7,22,.55))",
+      "linear-gradient(180deg, rgba(5,7,22,.12), rgba(5,7,22,.65))",
     fontFamily: "system-ui, sans-serif",
     opacity: "0",
     transition: "opacity 350ms ease"
@@ -224,7 +202,6 @@ function createCinematicOverlay() {
 
   const eyebrow = document.createElement("div");
   eyebrow.textContent = "A KAWIIS ORIGINAL";
-
   Object.assign(eyebrow.style, {
     color: "#60f4ff",
     letterSpacing: "0.35em",
@@ -235,7 +212,6 @@ function createCinematicOverlay() {
 
   const heading = document.createElement("h1");
   heading.textContent = "KAWIIS CHASE";
-
   Object.assign(heading.style, {
     margin: "0",
     fontSize: "clamp(30px, 8vw, 66px)",
@@ -247,7 +223,6 @@ function createCinematicOverlay() {
 
   const subtitle = document.createElement("p");
   subtitle.textContent = "WITH MEGAN";
-
   Object.assign(subtitle.style, {
     color: "#ff7ad9",
     letterSpacing: "0.45em",
@@ -258,7 +233,6 @@ function createCinematicOverlay() {
 
   const tagline = document.createElement("p");
   tagline.textContent = "THE CITY IS YOURS. THE CHASE IS ON.";
-
   Object.assign(tagline.style, {
     fontSize: "11px",
     letterSpacing: "0.13em",
@@ -268,17 +242,14 @@ function createCinematicOverlay() {
 
   overlay.append(eyebrow, heading, subtitle, tagline);
   document.body.appendChild(overlay);
-
   return overlay;
 }
 
 function showCinematicTitle(visible) {
   const element = createCinematicOverlay();
-
   element.style.display = visible ? "flex" : "none";
 
   requestAnimationFrame(() => {
-    if (!element) return;
     element.style.opacity = visible ? "1" : "0";
   });
 }
@@ -296,11 +267,14 @@ function beginCinematic() {
   player.reset?.();
   world?.reset?.();
 
-  cinematic = {
-    time: 0,
-    duration: 5.5
-  };
+  // Keep the rider at the world origin; move the city around them.
+  if (player.group) {
+    player.group.position.z = 0;
+  }
 
+  powerupTime = 0;
+
+  cinematic = { time: 0, duration: 5.5 };
   showCinematicTitle(true);
 
   camera.position.set(-8, 22, 32);
@@ -312,15 +286,10 @@ function updateCinematic(delta) {
 
   cinematic.time += delta;
 
-  const raw = Math.min(
-    1,
-    cinematic.time / cinematic.duration
-  );
-
+  const raw = Math.min(1, cinematic.time / cinematic.duration);
   const eased = raw * raw * (3 - 2 * raw);
 
   const start = new THREE.Vector3(-8, 22, 32);
-
   const end = new THREE.Vector3(
     player.group.position.x,
     player.group.position.y + 4.3,
@@ -330,7 +299,6 @@ function updateCinematic(delta) {
   camera.position.copy(start.lerp(end, eased));
 
   const lookStart = new THREE.Vector3(0, 2, -35);
-
   const lookEnd = new THREE.Vector3(
     player.group.position.x,
     player.group.position.y + 1.2,
@@ -339,31 +307,28 @@ function updateCinematic(delta) {
 
   camera.lookAt(lookStart.lerp(lookEnd, eased));
 
-  // A gentle cinematic sweep through the city.
   camera.position.x +=
-    Math.sin(cinematic.time * 0.65) *
-    (1 - eased) * 2.5;
+    Math.sin(cinematic.time * 0.65) * (1 - eased) * 2.5;
 
   if (cinematic.time >= cinematic.duration) {
     cinematic = null;
-
     showCinematicTitle(false);
 
     engine.start();
 
+    if (player.group) player.group.position.z = 0;
+
     show(hud);
     show(mobileControls);
-
     updateHud();
   }
 }
 
 function updateCamera(delta) {
-  if (!camera || !player) return;
+  if (!camera || !player?.group) return;
 
   const heading = player.group.rotation.y;
 
-  // Third-person camera behind the skater.
   const targetPosition = new THREE.Vector3(
     player.group.position.x - Math.sin(heading) * 8,
     player.group.position.y + 4.2,
@@ -389,13 +354,11 @@ function stopPlayer() {
 }
 
 function startGame() {
-  if (!engine) return;
-  beginCinematic();
+  if (engine) beginCinematic();
 }
 
 function restartGame() {
-  if (!engine) return;
-  beginCinematic();
+  if (engine) beginCinematic();
 }
 
 function togglePause() {
@@ -404,12 +367,9 @@ function togglePause() {
   if (engine.state === "playing") {
     stopPlayer();
     engine.pause();
-
-    showMessage(
-      "PAUSED",
-      "Ready when you are.",
-      { showResume: true }
-    );
+    showMessage("PAUSED", "Ready when you are.", {
+      showResume: true
+    });
   } else if (engine.state === "paused") {
     engine.resume();
     hideMessage();
@@ -419,9 +379,7 @@ function togglePause() {
 function temporaryMessage(title, body) {
   showMessage(title, body, { showResume: false });
 
-  if (powerupTimeout) {
-    clearTimeout(powerupTimeout);
-  }
+  if (powerupTimeout) clearTimeout(powerupTimeout);
 
   powerupTimeout = setTimeout(() => {
     if (engine?.state === "playing") hideMessage();
@@ -429,8 +387,12 @@ function temporaryMessage(title, body) {
 }
 
 function handleAction(action) {
-  if (!engine || engine.state !== "playing" ||
-      !player || cinematic) {
+  if (
+    !engine ||
+    engine.state !== "playing" ||
+    !player ||
+    cinematic
+  ) {
     return;
   }
 
@@ -452,20 +414,14 @@ function handleAction(action) {
       break;
 
     case "trick":
-      if (player.trick()) {
-        engine.addTrick(50);
-      }
+      if (player.trick()) engine.addTrick(50);
       break;
 
     case "powerup":
       if (engine.tokens >= 5 && powerupTime <= 0) {
         engine.tokens -= 5;
         powerupTime = 5;
-
-        engine.invulnerable = Math.max(
-          engine.invulnerable,
-          5
-        );
+        engine.invulnerable = Math.max(engine.invulnerable, 5);
 
         temporaryMessage(
           "POWER-UP!",
@@ -477,7 +433,6 @@ function handleAction(action) {
           "You need 5 rings for a power-up."
         );
       }
-
       break;
   }
 
@@ -490,10 +445,7 @@ function bindButtons() {
   $("message-restart")?.addEventListener("click", restartGame);
 
   $("resume-btn")?.addEventListener("click", () => {
-    if (engine?.state === "paused") {
-      engine.resume();
-    }
-
+    if (engine?.state === "paused") engine.resume();
     hideMessage();
   });
 
@@ -554,7 +506,6 @@ async function boot() {
 
       setChase: chase => {
         const fill = $("chaser-fill");
-
         if (fill) {
           fill.style.width =
             `${Math.max(0, Math.min(100, chase))}%`;
@@ -587,14 +538,11 @@ async function boot() {
       onAction: handleAction,
       onPause: togglePause,
 
-      // Hold a direction to accelerate and steer.
-      // Releasing it sets throttle to zero so the skater slows down.
+      // Hold left or right to accelerate and steer.
+      // Releasing both buttons stops applying throttle.
       onMove: horizontal => {
         if (engine?.state === "playing" && !cinematic) {
-          player?.move?.(
-            horizontal,
-            horizontal === 0 ? 0 : 1
-          );
+          player?.move?.(horizontal, horizontal === 0 ? 0 : 1);
         } else {
           player?.move?.(0, 0);
         }
@@ -610,12 +558,10 @@ async function boot() {
     });
 
     bindButtons();
-
     window.addEventListener("resize", resize);
 
     hide(loading);
     show(titleScreen);
-
     createCinematicOverlay();
 
     renderer.setAnimationLoop(time => {
@@ -630,7 +576,16 @@ async function boot() {
       if (cinematic) {
         updateCinematic(delta);
       } else if (engine?.state === "playing") {
+        // Reset before the update so the rider starts each frame
+        // from the same world position.
+        if (player?.group) player.group.position.z = 0;
+
         engine.update(delta);
+
+        // The city scrolls based on the skater's actual speed.
+        // Prevent the rider from travelling off the end of the road.
+        if (player?.group) player.group.position.z = 0;
+
         updateCamera(delta);
 
         if (powerupTime > 0) {
@@ -649,21 +604,16 @@ async function boot() {
 
 window.addEventListener("pagehide", () => {
   disposed = true;
-
   window.removeEventListener("resize", resize);
 
-  if (powerupTimeout) {
-    clearTimeout(powerupTimeout);
-  }
+  if (powerupTimeout) clearTimeout(powerupTimeout);
 
-  if (renderer) {
-    renderer.setAnimationLoop(null);
-  }
+  if (renderer) renderer.setAnimationLoop(null);
 
   controls?.dispose?.();
   engine?.dispose?.();
   world?.dispose?.();
-  renderer?.dispose?.();
+  renderer?.dispose();
 }, { once: true });
 
 boot();
