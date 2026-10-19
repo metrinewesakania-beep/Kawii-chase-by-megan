@@ -1,6 +1,6 @@
 
- // KAWIIS CHASE WITH MEGAN — main game controller
- // Includes a 3D cinematic intro, mobile controls and gameplay.
+ // src/main.js — KAWIIS CHASE WITH MEGAN
+ // Cinematic intro, 3D city, pedestrians, touch controls and gameplay.
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 import { createPlayer } from "./player.js";
@@ -19,7 +19,14 @@ const mobileControls = $("mobile-controls");
 const messagePanel = $("message");
 const resumeButton = $("resume-btn");
 
-let renderer, camera, scene, world, player, engine, controls;
+let renderer;
+let camera;
+let scene;
+let world;
+let player;
+let engine;
+let controls;
+
 let disposed = false;
 let previousTime = 0;
 let cinematic = null;
@@ -52,27 +59,37 @@ function readBest() {
 
 function saveBest(score) {
   try {
-    localStorage.setItem(
-      BEST_KEY,
-      String(Math.max(readBest(), Math.floor(Number(score) || 0)))
+    const best = Math.max(
+      readBest(),
+      Math.floor(Number(score) || 0)
     );
-  } catch {}
+    localStorage.setItem(BEST_KEY, String(best));
+  } catch {
+    // The game can still run if storage is unavailable.
+  }
 }
 
 function showError(error) {
   console.error("KAWIIS CHASE:", error);
   hide(loading);
+  hide(titleScreen);
+  hide(hud);
+  hide(mobileControls);
 
   if (errorPanel) {
-    errorPanel.textContent =
+    setText(
+      "error",
       "The 3D game could not load. Refresh the page and try again. " +
-      (error?.message || "");
+      (error?.message || "")
+    );
     show(errorPanel);
   }
 }
 
 function setupRenderer() {
-  if (!canvas) throw new Error("Canvas #glcanvas is missing.");
+  if (!canvas) {
+    throw new Error("Canvas #glcanvas is missing from index.html.");
+  }
 
   renderer = new THREE.WebGLRenderer({
     canvas,
@@ -80,8 +97,16 @@ function setupRenderer() {
     powerPreference: "high-performance"
   });
 
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-  renderer.setSize(window.innerWidth, window.innerHeight, false);
+  renderer.setPixelRatio(
+    Math.min(window.devicePixelRatio || 1, 1.5)
+  );
+
+  renderer.setSize(
+    window.innerWidth,
+    window.innerHeight,
+    false
+  );
+
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.setClearColor(0x100b26, 1);
 }
@@ -100,7 +125,12 @@ function setupScene() {
 
   camera.position.set(0, 15, 30);
 
-  scene.add(new THREE.HemisphereLight(0xc4eaff, 0x29203c, 2.1));
+  const skyLight = new THREE.HemisphereLight(
+    0xc4eaff,
+    0x29203c,
+    2.1
+  );
+  scene.add(skyLight);
 
   const sun = new THREE.DirectionalLight(0xffd2a1, 2.6);
   sun.position.set(-12, 20, 10);
@@ -118,9 +148,19 @@ function setupScene() {
 function resize() {
   if (!renderer || !camera || disposed) return;
 
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-  renderer.setSize(window.innerWidth, window.innerHeight, false);
-  camera.aspect = window.innerWidth / Math.max(1, window.innerHeight);
+  renderer.setPixelRatio(
+    Math.min(window.devicePixelRatio || 1, 1.5)
+  );
+
+  renderer.setSize(
+    window.innerWidth,
+    window.innerHeight,
+    false
+  );
+
+  camera.aspect =
+    window.innerWidth / Math.max(1, window.innerHeight);
+
   camera.updateProjectionMatrix();
 }
 
@@ -128,10 +168,14 @@ function updateHud() {
   if (!engine) return;
 
   setText("score-val", Math.floor(engine.score || 0));
+
+  // Infinite high-score display, as requested.
   setText("best-val", "∞");
+
   setText("tokens-val", engine.tokens || 0);
 
   const fill = $("chaser-fill");
+
   if (fill) {
     fill.style.width =
       `${Math.max(0, Math.min(100, engine.chase || 0))}%`;
@@ -141,7 +185,11 @@ function updateHud() {
 function showMessage(title, body, options = {}) {
   setText("message-title", title);
   setText("message-body", body);
-  if (resumeButton) resumeButton.hidden = options.showResume === false;
+
+  if (resumeButton) {
+    resumeButton.hidden = options.showResume === false;
+  }
+
   show(messagePanel);
 }
 
@@ -154,6 +202,7 @@ function createCinematicOverlay() {
 
   overlay = document.createElement("div");
   overlay.id = "cinematic-title";
+
   Object.assign(overlay.style, {
     position: "fixed",
     inset: "0",
@@ -166,7 +215,8 @@ function createCinematicOverlay() {
     padding: "24px",
     pointerEvents: "none",
     color: "#ffffff",
-    background: "linear-gradient(180deg, rgba(5,7,22,.12), rgba(5,7,22,.55))",
+    background:
+      "linear-gradient(180deg, rgba(5,7,22,.12), rgba(5,7,22,.55))",
     fontFamily: "system-ui, sans-serif",
     opacity: "0",
     transition: "opacity 350ms ease"
@@ -174,6 +224,7 @@ function createCinematicOverlay() {
 
   const eyebrow = document.createElement("div");
   eyebrow.textContent = "A KAWIIS ORIGINAL";
+
   Object.assign(eyebrow.style, {
     color: "#60f4ff",
     letterSpacing: "0.35em",
@@ -184,6 +235,7 @@ function createCinematicOverlay() {
 
   const heading = document.createElement("h1");
   heading.textContent = "KAWIIS CHASE";
+
   Object.assign(heading.style, {
     margin: "0",
     fontSize: "clamp(30px, 8vw, 66px)",
@@ -195,6 +247,7 @@ function createCinematicOverlay() {
 
   const subtitle = document.createElement("p");
   subtitle.textContent = "WITH MEGAN";
+
   Object.assign(subtitle.style, {
     color: "#ff7ad9",
     letterSpacing: "0.45em",
@@ -205,6 +258,7 @@ function createCinematicOverlay() {
 
   const tagline = document.createElement("p");
   tagline.textContent = "THE CITY IS YOURS. THE CHASE IS ON.";
+
   Object.assign(tagline.style, {
     fontSize: "11px",
     letterSpacing: "0.13em",
@@ -214,19 +268,21 @@ function createCinematicOverlay() {
 
   overlay.append(eyebrow, heading, subtitle, tagline);
   document.body.appendChild(overlay);
+
   return overlay;
 }
 
 function showCinematicTitle(visible) {
   const element = createCinematicOverlay();
+
   element.style.display = visible ? "flex" : "none";
 
   requestAnimationFrame(() => {
+    if (!element) return;
     element.style.opacity = visible ? "1" : "0";
   });
 }
 
-// Cinematic uses a real-time camera move through the existing 3D city.
 function beginCinematic() {
   if (!player || !engine) return;
 
@@ -236,10 +292,15 @@ function beginCinematic() {
   hide(hud);
   hide(mobileControls);
 
+  player.move?.(0, 0);
   player.reset?.();
-  engine.world?.reset?.();
+  world?.reset?.();
 
-  cinematic = { time: 0, duration: 5.5 };
+  cinematic = {
+    time: 0,
+    duration: 5.5
+  };
+
   showCinematicTitle(true);
 
   camera.position.set(-8, 22, 32);
@@ -250,20 +311,26 @@ function updateCinematic(delta) {
   if (!cinematic || !player) return;
 
   cinematic.time += delta;
-  const raw = Math.min(1, cinematic.time / cinematic.duration);
+
+  const raw = Math.min(
+    1,
+    cinematic.time / cinematic.duration
+  );
+
   const eased = raw * raw * (3 - 2 * raw);
 
   const start = new THREE.Vector3(-8, 22, 32);
+
   const end = new THREE.Vector3(
     player.group.position.x,
     player.group.position.y + 4.3,
     player.group.position.z + 9
   );
 
-  const targetPosition = start.lerp(end, eased);
-  camera.position.copy(targetPosition);
+  camera.position.copy(start.lerp(end, eased));
 
   const lookStart = new THREE.Vector3(0, 2, -35);
+
   const lookEnd = new THREE.Vector3(
     player.group.position.x,
     player.group.position.y + 1.2,
@@ -272,16 +339,21 @@ function updateCinematic(delta) {
 
   camera.lookAt(lookStart.lerp(lookEnd, eased));
 
-  // Gentle orbit during the opening shot.
-  camera.position.x += Math.sin(cinematic.time * 0.65) * (1 - eased) * 2.5;
+  // A gentle cinematic sweep through the city.
+  camera.position.x +=
+    Math.sin(cinematic.time * 0.65) *
+    (1 - eased) * 2.5;
 
   if (cinematic.time >= cinematic.duration) {
     cinematic = null;
+
     showCinematicTitle(false);
 
     engine.start();
+
     show(hud);
     show(mobileControls);
+
     updateHud();
   }
 }
@@ -290,13 +362,18 @@ function updateCamera(delta) {
   if (!camera || !player) return;
 
   const heading = player.group.rotation.y;
+
+  // Third-person camera behind the skater.
   const targetPosition = new THREE.Vector3(
     player.group.position.x - Math.sin(heading) * 8,
     player.group.position.y + 4.2,
     player.group.position.z + Math.cos(heading) * 8
   );
 
-  camera.position.lerp(targetPosition, 1 - Math.exp(-4 * delta));
+  camera.position.lerp(
+    targetPosition,
+    1 - Math.exp(-4 * delta)
+  );
 
   const lookTarget = new THREE.Vector3(
     player.group.position.x + Math.sin(heading) * 3,
@@ -327,7 +404,12 @@ function togglePause() {
   if (engine.state === "playing") {
     stopPlayer();
     engine.pause();
-    showMessage("PAUSED", "Ready when you are.", { showResume: true });
+
+    showMessage(
+      "PAUSED",
+      "Ready when you are.",
+      { showResume: true }
+    );
   } else if (engine.state === "paused") {
     engine.resume();
     hideMessage();
@@ -337,40 +419,65 @@ function togglePause() {
 function temporaryMessage(title, body) {
   showMessage(title, body, { showResume: false });
 
-  if (powerupTimeout) clearTimeout(powerupTimeout);
+  if (powerupTimeout) {
+    clearTimeout(powerupTimeout);
+  }
+
   powerupTimeout = setTimeout(() => {
     if (engine?.state === "playing") hideMessage();
   }, 1400);
 }
 
 function handleAction(action) {
-  if (!engine || engine.state !== "playing" || !player) return;
+  if (!engine || engine.state !== "playing" ||
+      !player || cinematic) {
+    return;
+  }
 
   switch (action) {
     case "left":
       player.turn(-1);
       break;
+
     case "right":
       player.turn(1);
       break;
+
     case "jump":
       player.jump();
       break;
+
     case "slide":
       player.slide();
       break;
+
     case "trick":
-      if (player.trick()) engine.addTrick(50);
+      if (player.trick()) {
+        engine.addTrick(50);
+      }
       break;
+
     case "powerup":
       if (engine.tokens >= 5 && powerupTime <= 0) {
         engine.tokens -= 5;
         powerupTime = 5;
-        engine.invulnerable = Math.max(engine.invulnerable, 5);
-        temporaryMessage("POWER-UP!", "Temporary protection activated!");
+
+        engine.invulnerable = Math.max(
+          engine.invulnerable,
+          5
+        );
+
+        temporaryMessage(
+          "POWER-UP!",
+          "Temporary protection activated!"
+        );
       } else if (engine.tokens < 5) {
-        temporaryMessage("COLLECT MORE RINGS", "You need 5 rings for a power-up.");
+        temporaryMessage(
+          "COLLECT MORE RINGS",
+          "You need 5 rings for a power-up."
+        );
       }
+
       break;
   }
 
@@ -383,7 +490,10 @@ function bindButtons() {
   $("message-restart")?.addEventListener("click", restartGame);
 
   $("resume-btn")?.addEventListener("click", () => {
-    if (engine?.state === "paused") engine.resume();
+    if (engine?.state === "paused") {
+      engine.resume();
+    }
+
     hideMessage();
   });
 
@@ -392,8 +502,10 @@ function bindButtons() {
   $("help-btn")?.addEventListener("click", () => {
     showMessage(
       "HOW TO PLAY",
-      "Use left and right to steer. Swipe up to jump, swipe down to slide, " +
-      "and collect rings. Double-tap the game to use a power-up."
+      "Hold left or right to ride and steer. Swipe up to jump, " +
+      "swipe down to slide, and collect rings. Double-tap the " +
+      "game area to activate a power-up after collecting 5 rings.",
+      { showResume: false }
     );
   });
 }
@@ -411,6 +523,7 @@ async function boot() {
     setupScene();
 
     world = await createWorld({ THREE, scene });
+
     if (disposed) {
       world?.dispose?.();
       renderer?.dispose();
@@ -422,34 +535,66 @@ async function boot() {
     const ui = {
       getBest: readBest,
       saveBest,
-      setScore: score => setText("score-val", Math.floor(score)),
-      setBest: () => setText("best-val", "∞"),
-      setDistance: distance => setText("distance-val", Math.floor(distance)),
-      setTokens: tokens => setText("tokens-val", tokens),
+
+      setScore: score => {
+        setText("score-val", Math.floor(score));
+      },
+
+      setBest: () => {
+        setText("best-val", "∞");
+      },
+
+      setDistance: distance => {
+        setText("distance-val", Math.floor(distance));
+      },
+
+      setTokens: tokens => {
+        setText("tokens-val", tokens);
+      },
+
       setChase: chase => {
         const fill = $("chaser-fill");
-        if (fill) fill.style.width = `${Math.max(0, Math.min(100, chase))}%`;
+
+        if (fill) {
+          fill.style.width =
+            `${Math.max(0, Math.min(100, chase))}%`;
+        }
       },
+
       showMessage,
       hideMessage,
+
       onStateChange: state => {
-        if (state === "playing") hideMessage();
-        if (state !== "playing") stopPlayer();
+        if (state === "playing") {
+          hideMessage();
+        } else {
+          stopPlayer();
+        }
       }
     };
 
     engine = new GameEngine({
-      THREE, scene, camera, renderer, world, player, ui
+      THREE,
+      scene,
+      camera,
+      renderer,
+      world,
+      player,
+      ui
     });
 
     controls = createControls({
       onAction: handleAction,
       onPause: togglePause,
 
-      // Holding a direction moves the skater forward and steers.
+      // Hold a direction to accelerate and steer.
+      // Releasing it sets throttle to zero so the skater slows down.
       onMove: horizontal => {
         if (engine?.state === "playing" && !cinematic) {
-          player?.move?.(horizontal, 1);
+          player?.move?.(
+            horizontal,
+            horizontal === 0 ? 0 : 1
+          );
         } else {
           player?.move?.(0, 0);
         }
@@ -465,10 +610,12 @@ async function boot() {
     });
 
     bindButtons();
+
     window.addEventListener("resize", resize);
 
     hide(loading);
     show(titleScreen);
+
     createCinematicOverlay();
 
     renderer.setAnimationLoop(time => {
@@ -502,10 +649,16 @@ async function boot() {
 
 window.addEventListener("pagehide", () => {
   disposed = true;
+
   window.removeEventListener("resize", resize);
 
-  if (powerupTimeout) clearTimeout(powerupTimeout);
-  if (renderer) renderer.setAnimationLoop(null);
+  if (powerupTimeout) {
+    clearTimeout(powerupTimeout);
+  }
+
+  if (renderer) {
+    renderer.setAnimationLoop(null);
+  }
 
   controls?.dispose?.();
   engine?.dispose?.();
