@@ -1,249 +1,279 @@
-
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#080716">
-  <meta name="description"
-        content="KAWIIS CHASE WITH MEGAN — a neon 3D street-skating chase adventure.">
-  <title>KAWIIS CHASE WITH MEGAN</title>
-  <link rel="stylesheet" href="./style.css">
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+  />
+  <meta name="theme-color" content="#080511" />
+  <meta
+    name="description"
+    content="KAWIIS CITY RUN WITH MEGAN — race through a living 3D city, dodge deadly obstacles, collect coins, activate powers, and escape the chase."
+  />
+  <meta name="color-scheme" content="dark" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <title>KAWIIS CITY RUN WITH MEGAN | Ultimate City Runner</title>
+
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" href="./style.css" />
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 
 <body>
-  <main id="game" class="game-shell" aria-label="KAWIIS CHASE game">
+  <main id="game" class="game-shell" aria-label="KAWIIS City Run game">
 
-    <!-- THREE.JS 3D WORLD -->
-    <canvas id="glcanvas"
-            aria-label="3D skating game"
-            tabindex="0"></canvas>
+    <!-- 3D GAME WORLD -->
+    <canvas
+      id="glcanvas"
+      aria-label="Three-dimensional city running game"
+    ></canvas>
 
-    <!-- LOADING SCREEN -->
-    <section id="loading" class="panel" aria-live="polite">
-      <p class="eyebrow">MEGAN KAWIIS STUDIOS</p>
-      <h1>INITIALIZING</h1>
-      <p class="subtitle">Preparing the city...</p>
-      <div class="loading-orb" aria-hidden="true"></div>
-      <p class="small">Loading your 3D adventure</p>
-    </section>
+    <!-- CINEMATIC OVERLAY -->
+    <div class="screen-effects" aria-hidden="true">
+      <div class="screen-vignette"></div>
+      <div class="screen-scanlines"></div>
+      <div class="screen-glow"></div>
+    </div>
 
-    <!-- MAIN MENU -->
-    <section id="title-screen" class="panel" aria-labelledby="game-title">
-      <p class="eyebrow">A MEGAN KAWIIS ORIGINAL</p>
-      <h1 id="game-title">KAWIIS<br>CHASE</h1>
-      <p class="subtitle">WITH MEGAN</p>
+    <!-- TOP HUD -->
+    <aside id="hud" class="hud hidden" aria-label="Game statistics">
 
-      <div class="hero-divider" aria-hidden="true"></div>
-
-      <p class="intro">
-        Own the streets. Master every move.
-        Escape the chase.
-      </p>
-
-      <div class="btn-row">
-        <button id="start-btn"
-                class="btn primary"
-                type="button">
-          START YOUR RUN
-        </button>
-
-        <button id="help-btn"
-                class="btn"
-                type="button">
-          HOW TO PLAY
-        </button>
-      </div>
-
-      <div class="feature-row">
-        <span>3D CITY</span>
-        <span>STREET SKATING</span>
-        <span>ENDLESS CHASE</span>
-      </div>
-
-      <p class="small">
-        Built for mobile and desktop.
-      </p>
-    </section>
-
-    <!-- ERROR SCREEN -->
-    <section id="error"
-             class="panel"
-             role="alert"
-             aria-live="assertive"
-             hidden>
-      <p class="eyebrow">SYSTEM ALERT</p>
-      <h2>GAME UNAVAILABLE</h2>
-      <p>
-        The 3D game could not start. Check your connection
-        and browser, then reload the page.
-      </p>
-      <button class="btn primary"
-              type="button"
-              onclick="location.reload()">
-        TRY AGAIN
-      </button>
-    </section>
-
-    <!-- GAME HUD -->
-    <section id="hud" class="hud" aria-label="Game statistics" hidden>
       <div class="hud-top">
-        <div class="brand-chip">
-          <span class="brand-dot" aria-hidden="true"></span>
-          <span>KAWIIS CHASE</span>
+        <div class="brand-mark">
+          <span class="brand-symbol">K</span>
+          <div class="brand-copy">
+            <strong>KAWIIS</strong>
+            <span>CITY RUN</span>
+          </div>
         </div>
 
-        <div class="hud-buttons">
-          <button id="pause-btn"
-                  class="btn small"
-                  type="button"
-                  aria-label="Pause game">
-            PAUSE
+        <div class="hud-actions">
+          <button
+            id="power-btn"
+            class="btn power-button small"
+            type="button"
+            aria-label="Activate power-up"
+            disabled
+          >
+            <span aria-hidden="true">⚡</span>
+            POWER
           </button>
 
-          <button id="restart-btn"
-                  class="btn small"
-                  type="button"
-                  aria-label="Restart game">
-            RESTART
+          <button
+            id="pause-btn"
+            class="btn small"
+            type="button"
+            aria-label="Pause game"
+          >
+            <span aria-hidden="true">Ⅱ</span>
+            PAUSE
           </button>
         </div>
       </div>
 
       <div class="stats-grid">
-        <div class="hud-block">
-          <span class="label">SCORE</span>
-          <strong id="score-val">0</strong>
+        <div class="stat stat-primary">
+          <span class="stat-label">SCORE</span>
+          <b id="score-val">0</b>
         </div>
 
-        <div class="hud-block">
-          <span class="label">BEST</span>
-          <strong id="best-val">0</strong>
+        <div class="stat">
+          <span class="stat-label">BEST</span>
+          <b id="best-val">0</b>
         </div>
 
-        <div class="hud-block">
-          <span class="label">RINGS</span>
-          <strong id="tokens-val">0</strong>
+        <div class="stat">
+          <span class="stat-label">DISTANCE</span>
+          <b id="dist-val">0 m</b>
         </div>
 
-        <div class="hud-block">
-          <span class="label">DISTANCE</span>
-          <strong id="distance-val">0</strong>
+        <div class="stat">
+          <span class="stat-label">COINS</span>
+          <b id="coin-val">0</b>
+        </div>
+      </div>
+
+      <div class="power-status">
+        <div class="power-labels">
+          <span>POWER CHARGE</span>
+          <b id="power-val">0/10</b>
+        </div>
+        <div class="power-track" aria-label="Power charge">
+          <div id="power-fill" class="power-fill"></div>
         </div>
       </div>
 
-      <div class="chase-wrap">
-        <div class="chase-heading">
-          <span class="label">RIVAL CHASE</span>
-          <span class="label">ESCAPE!</span>
+      <div class="chase">
+        <div class="chase-labels">
+          <span>RIVAL PURSUIT</span>
+          <b id="chase-text">ESCAPE!</b>
         </div>
-        <div class="chase-meter"
-             role="progressbar"
-             aria-label="Rival chase progress"
-             aria-valuemin="0"
-             aria-valuemax="100">
-          <div id="chaser-fill"></div>
+        <div
+          class="chase-track"
+          role="progressbar"
+          aria-label="Rival pursuit"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+          id="chase-progress"
+        >
+          <u id="chaser-fill"></u>
         </div>
       </div>
-    </section>
+    </aside>
 
-    <!-- MOBILE GAME CONTROLS -->
-    <section id="mobile-controls"
-             class="mobile-controls"
-             aria-label="Mobile game controls"
-             hidden>
+    <!-- TITLE SCREEN -->
+    <section
+      id="title-screen"
+      class="panel title-screen hidden"
+      aria-labelledby="game-title"
+    >
+      <div class="eyebrow">
+        <span class="live-dot"></span>
+        THE CITY IS WAITING
+      </div>
 
-      <!-- JOYSTICK VISUAL: requires JavaScript wiring -->
-      <div id="joystick-base"
-           class="joystick-base"
-           role="group"
-           aria-label="Movement joystick">
-        <span class="joystick-direction up" aria-hidden="true">▲</span>
-        <span class="joystick-direction left" aria-hidden="true">◀</span>
-        <span class="joystick-direction right" aria-hidden="true">▶</span>
-        <span class="joystick-direction down" aria-hidden="true">▼</span>
+      <div class="title-logo">
+        <span class="title-kicker">MEGAN KAWIIS PRESENTS</span>
+        <h1 id="game-title">
+          KAWIIS
+          <span>CITY RUN</span>
+          <em>WITH MEGAN</em>
+        </h1>
+      </div>
 
-        <button id="joystick-knob"
-                class="joystick-knob"
-                type="button"
-                aria-label="Joystick handle">
-          <span aria-hidden="true">✦</span>
+      <p class="title-description">
+        Run the streets. Beat the chase. Own the city.
+      </p>
+
+      <p id="title-best" class="best-line"></p>
+
+      <div class="title-actions">
+        <button id="start-btn" class="btn primary start-button" type="button">
+          <span>START YOUR RUN</span>
+          <span aria-hidden="true">➜</span>
+        </button>
+
+        <button id="help-btn" class="btn" type="button">
+          HOW TO PLAY
         </button>
       </div>
 
-      <!-- Existing control IDs are preserved -->
-      <div class="action-controls">
-        <button id="trick-btn"
-                class="btn trick-btn"
-                type="button"
-                aria-label="Perform trick">
-          ✦
-          <span>TRICK</span>
-        </button>
-
-        <div class="stacked-controls">
-          <button id="jump-btn"
-                  class="btn control-btn jump-control"
-                  type="button"
-                  aria-label="Jump">
-            ▲
-            <span>JUMP</span>
-          </button>
-
-          <button id="slide-btn"
-                  class="btn control-btn slide-control"
-                  type="button"
-                  aria-label="Slide">
-            ▼
-            <span>SLIDE</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Fallback steering buttons used by current controls.js -->
-      <div class="fallback-steering" aria-label="Alternative steering">
-        <button id="left-btn"
-                class="btn control-btn"
-                type="button"
-                aria-label="Move left">◀</button>
-        <button id="right-btn"
-                class="btn control-btn"
-                type="button"
-                aria-label="Move right">▶</button>
-      </div>
+      <p class="micro-copy">ONE CITY. THREE LANES. NO LIMITS.</p>
     </section>
 
-    <!-- PAUSE, HELP AND GAME MESSAGES -->
-    <section id="message"
-             class="panel"
-             role="dialog"
-             aria-modal="true"
-             aria-labelledby="message-title"
-             hidden>
-      <p class="eyebrow">KAWIIS SYSTEM</p>
+    <!-- LOADING SCREEN -->
+    <section id="loading" class="panel loading-screen" aria-live="polite">
+      <div class="loading-emblem" aria-hidden="true">
+        <span>K</span>
+      </div>
+
+      <p class="loading-kicker">MEGAN KAWIIS GAME SYSTEM</p>
+      <h2>INITIALIZING CITY</h2>
+
+      <div
+        class="bar loading-track"
+        role="progressbar"
+        aria-label="Loading progress"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="0"
+      >
+        <u id="loading-bar"></u>
+      </div>
+
+      <p id="loading-text">Building the streets...</p>
+      <span class="loading-version">KAWIIS ENGINE · 3D</span>
+    </section>
+
+    <!-- HELP / PAUSE / GAME OVER -->
+    <section
+      id="message"
+      class="panel message-screen hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="message-title"
+    >
+      <span class="panel-kicker">KAWIIS CITY RUN</span>
+
       <h2 id="message-title">PAUSED</h2>
-      <p id="message-body">Ready when you are.</p>
+      <p id="message-body"></p>
 
-      <div class="btn-row">
-        <button id="resume-btn"
-                class="btn primary"
-                type="button">
+      <div id="help-content" class="help-content hidden">
+        <div class="help-row">
+          <span class="help-key">← →</span>
+          <span>Change lanes</span>
+        </div>
+        <div class="help-row">
+          <span class="help-key">↑</span>
+          <span>Jump over obstacles</span>
+        </div>
+        <div class="help-row">
+          <span class="help-key">↓</span>
+          <span>Slide beneath barriers</span>
+        </div>
+        <div class="help-row">
+          <span class="help-key">DOUBLE TAP</span>
+          <span>Activate power when ready</span>
+        </div>
+      </div>
+
+      <div class="row message-actions">
+        <button id="resume-btn" class="btn primary" type="button">
           RESUME
         </button>
-
-        <button id="message-restart"
-                class="btn"
-                type="button">
+        <button id="message-restart" class="btn" type="button">
           RESTART RUN
+        </button>
+        <button id="message-close" class="btn hidden" type="button">
+          CLOSE
         </button>
       </div>
     </section>
 
-    <!-- BRAND FOOTER -->
-    <div class="game-signature" aria-hidden="true">
-      MEGAN KAWIIS <span>•</span> CHASE THE LIMIT
+    <!-- ERROR SCREEN -->
+    <section
+      id="error"
+      class="panel error-screen hidden"
+      role="alert"
+      aria-labelledby="error-title"
+    >
+      <div class="error-symbol" aria-hidden="true">!</div>
+      <h2 id="error-title">CITY SYSTEM ERROR</h2>
+      <p id="error-text">
+        The game could not start. Please reload and try again.
+      </p>
+      <div class="row">
+        <button id="reload-btn" class="btn primary" type="button">
+          RELOAD GAME
+        </button>
+      </div>
+    </section>
+
+    <!-- MOBILE HINT -->
+    <div id="touch-hint" class="touch-hint hidden" aria-hidden="true">
+      SWIPE TO MOVE
     </div>
+
+    <!-- MOBILE TOUCH BUTTONS; JAVASCRIPT MUST WIRE THESE -->
+    <nav id="mobile-controls" class="mobile-controls hidden" aria-label="Touch controls">
+      <button id="left-btn" class="touch-btn" type="button" aria-label="Move left">◀</button>
+      <button id="jump-btn" class="touch-btn" type="button" aria-label="Jump">▲</button>
+      <button id="slide-btn" class="touch-btn" type="button" aria-label="Slide">▼</button>
+      <button id="right-btn" class="touch-btn" type="button" aria-label="Move right">▶</button>
+    </nav>
 
   </main>
 
