@@ -1,205 +1,239 @@
-
- // src/game.js — KAWIIS CHASE WITH MEGAN
- // Improved movement-aware game engine.
+// KAWIIS CHASE WITH MEGAN
+// Main game engine: scoring, movement, chasing, collisions and power-ups.
 
 export class GameEngine {
-  constructor({ THREE, scene, camera, renderer, world, player, ui }) {
-    this.THREE = THREE;
-    this.scene = scene;
-    this.camera = camera;
-    this.renderer = renderer;
-    this.world = world;
+  constructor({ player, world, ui = {} } = {}) {
     this.player = player;
+    this.world = world;
     this.ui = ui;
 
     this.state = "ready";
     this.score = 0;
-    this.best = ui?.getBest?.() || 0;
     this.distance = 0;
-    this.tokens = 0;
+    this.coins = 0;
     this.chase = 0;
+    this.speed = 14;
+    this.maxSpeed = 34;
     this.elapsed = 0;
-    this.speed = 0;
-    this.invulnerable = 1.5;
-    this._gameOverHandled = false;
+    this.powerTime = 0;
+    this.invulnerable = 0;
+    this.jumpTime = 0;
+    this.slideTime = 0;
+    this.trickCooldown = 0;
 
-    this.updateHUD();
-  }
-
-  updateHUD() {
-    this.ui?.setScore?.(Math.floor(this.score));
-    this.ui?.setBest?.(this.best);
-    this.ui?.setDistance?.(Math.floor(this.distance));
-    this.ui?.setTokens?.(this.tokens);
-    this.ui?.setChase?.(this.chase);
-  }
-
-  setState(state) {
-    this.state = state;
-    this.ui?.onStateChange?.(state);
+    this.lastTime = 0;
+    this.frameId = 0;
+    this.boundLoop = (time) => this.loop(time);
   }
 
   start() {
-    this.score = 0;
-    this.distance = 0;
-    this.tokens = 0;
-    this.chase = 0;
-    this.elapsed = 0;
-    this.speed = 0;
-    this.invulnerable = 1.5;
-    this._gameOverHandled = false;
+    if (this.state === "playing") return;
 
-    this.world?.reset?.();
-    this.player?.reset?.();
-
-    this.setState("playing");
-    this.updateHUD();
-  }
-
-  restart() {
-    this.start();
+    this.state = "playing";
+    this.lastTime = 0;
+    cancelAnimationFrame(this.frameId);
+    this.frameId = requestAnimationFrame(this.boundLoop);
   }
 
   pause() {
     if (this.state !== "playing") return;
-    this.setState("paused");
+    this.state = "paused";
+    cancelAnimationFrame(this.frameId);
   }
 
   resume() {
-    if (this.state !== "paused" && this.state !== "ready") return;
-    this.setState("playing");
+    if (this.state !== "paused") return;
+    this.start();
+  }
+
+  restart() {
+    cancelAnimationFrame(this.frameId);
+
+    this.score = 0;
+    this.distance = 0;
+    this.coins = 0;
+    this.chase = 0;
+    this.speed = 14;
+    this.elapsed = 0;
+    this.powerTime = 0;
+    this.invulnerable = 0;
+    this.jumpTime = 0;
+    this.slideTime = 0;
+    this.trickCooldown = 0;
+    this.lastTime = 0;
+
+    this.player?.reset?.();
+    this.world?.reset?.();
+
+    this.state = "ready";
+    this.updateUI();
+  }
+
+  action(name) {
+    if (this.state !== "playing") return;
+
+    switch (name) {
+      case "left":
+        this.player?.moveLane?.(-1);
+        break;
+
+      case "right":
+        this.player?.moveLane?.(1);
+        break;
+
+      case "jump":
+        if (!this.jumpTime && !this.slideTime) {
+          this.jumpTime = 0.85;
+          this.player?.jump?.();
+        }
+        break;
+
+      case "slide":
+        if (!this.slideTime && !this.jumpTime) {
+          this.slideTime = 0.7;
+          this.player?.slide?.();
+        }
+        break;
+
+      case "trick":
+        if (this.trickCooldown <= 0) {
+          this.trickCooldown = 1;
+          this.score += 50;
+          this.player?.trick?.();
+        }
+        break;
+
+      case "power":
+        this.powerTime = 5;
+        this.invulnerable = 5;
+        this.player?.activatePower?.();
+        break;
+    }
+
+    this.updateUI();
   }
 
   addTrick(points = 50) {
     if (this.state !== "playing") return;
-
-    this.score += Math.max(0, Number(points) || 0);
-    this.best = Math.max(this.best, Math.floor(this.score));
-    this.chase = Math.max(0, this.chase - 3);
-
-    this.ui?.saveBest?.(this.best);
-    this.updateHUD();
+    this.score += Math.max(0, points);
+    this.updateUI();
   }
 
-  collectRing(actor) {
-    if (!actor || actor.collected) return;
-
-    actor.collected = true;
-    this.tokens += 1;
-    this.score += 25;
-    this.chase = Math.max(0, this.chase - 2);
-    this.best = Math.max(this.best, Math.floor(this.score));
-
-    this.world?.remove?.(actor);
-    this.ui?.saveBest?.(this.best);
-    this.updateHUD();
+  collectRing(value = 1) {
+    if (this.state !== "playing") return;
+    this.coins += Math.max(1, value);
+    this.score += 100;
+    this.updateUI();
   }
 
-  endRun(reason = "Run ended") {
-    if (this._gameOverHandled) return;
+  endRun(reason = "You were caught!") {
+    if (this.state === "gameover") return;
 
-    this._gameOverHandled = true;
-    this.speed = 0;
-    this.player?.move?.(0, 0);
-    this.setState("gameover");
+    this.state = "gameover";
+    cancelAnimationFrame(this.frameId);
 
-    this.ui?.showMessage?.("Run over", reason, {
-      showResume: false
+    const best = Math.max(
+      this.score,
+      Number(this.readBest()) || 0
+    );
+
+    try {
+      localStorage.setItem("kawii-chase-best", String(best));
+    } catch (_) {}
+
+    this.ui.onGameOver?.({
+      score: this.score,
+      distance: Math.floor(this.distance),
+      coins: this.coins,
+      best,
+      reason
     });
 
-    this.ui?.saveBest?.(this.best);
+    this.updateUI();
   }
 
-  update(delta) {
+  readBest() {
+    try {
+      return Number(localStorage.getItem("kawii-chase-best")) || 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  updateUI() {
+    this.ui.update?.({
+      score: Math.floor(this.score),
+      distance: Math.floor(this.distance),
+      coins: this.coins,
+      chase: this.chase,
+      speed: this.speed,
+      powerTime: this.powerTime,
+      best: Math.max(this.score, this.readBest())
+    });
+
+    this.ui.saveBest?.(Math.max(this.score, this.readBest()));
+  }
+
+  loop(time) {
     if (this.state !== "playing") return;
 
-    const dt = Math.min(Math.max(Number(delta) || 0, 0), 0.05);
+    const dt = this.lastTime
+      ? Math.min((time - this.lastTime) / 1000, 0.05)
+      : 0;
 
+    this.lastTime = time;
     this.elapsed += dt;
 
-    if (this.invulnerable > 0) {
-      this.invulnerable = Math.max(0, this.invulnerable - dt);
-    }
+    this.powerTime = Math.max(0, this.powerTime - dt);
+    this.invulnerable = Math.max(0, this.invulnerable - dt);
+    this.jumpTime = Math.max(0, this.jumpTime - dt);
+    this.slideTime = Math.max(0, this.slideTime - dt);
+    this.trickCooldown = Math.max(0, this.trickCooldown - dt);
 
-    // Update player first so we can read actual movement speed.
-    this.player?.update?.(dt);
+    this.speed = Math.min(
+      this.maxSpeed,
+      14 + this.elapsed * 0.12
+    );
 
-    const actualSpeed = Math.max(0, Number(this.player?.speed) || 0);
-    this.speed = actualSpeed;
+    try {
+      this.player?.update?.(dt, this.speed);
+      this.world?.update?.(dt, this.speed);
 
-    // World motion is tied to the skater's actual speed.
-    this.world?.update?.(dt, actualSpeed);
+      this.distance += this.speed * dt;
+      this.score += this.speed * dt * 0.8;
+      this.chase = Math.min(
+        100,
+        this.chase + dt * 0.7
+      );
 
-    // Do not increase distance, score, or chase while stationary.
-    if (actualSpeed > 0.15) {
-      this.distance += actualSpeed * dt;
-      this.score += actualSpeed * dt * 0.7;
-      this.chase = Math.min(100, this.chase + dt * 1.8);
-    }
+      // A world may expose collisions through this optional method.
+      const collision = this.world?.checkCollision?.(this.player);
 
-    const playerGroup = this.player?.group;
-
-    if (playerGroup && Array.isArray(this.world?.actors)) {
-      const px = playerGroup.position.x;
-      const pz = playerGroup.position.z;
-      const jumpHeight = this.player.jumpHeight ?? 0;
-      const sliding = Boolean(this.player.isSliding);
-
-      for (let i = this.world.actors.length - 1; i >= 0; i--) {
-        const actor = this.world.actors[i];
-        if (!actor?.mesh) continue;
-
-        const dx = Math.abs(actor.mesh.position.x - px);
-        const dz = Math.abs(actor.mesh.position.z - pz);
-
-        if (dx > 1.4 || dz > 1.5) continue;
-
-        if (actor.kind === "ring") {
-          this.collectRing(actor);
-          continue;
-        }
-
-        const jumpedOver =
-          ["barrier", "crate", "ramp"].includes(actor.kind) &&
-          jumpHeight > 1.0;
-
-        const slidUnder =
-          actor.kind === "sign" && sliding;
-
-        if (jumpedOver || slidUnder) {
-          this.world.remove?.(actor);
-          continue;
-        }
-
-        if (this.invulnerable <= 0) {
-          this.player?.crash?.();
-          this.endRun("You crashed! Try another run.");
-          break;
-        }
+      if (collision && this.invulnerable <= 0) {
+        this.endRun("You hit an obstacle!");
+        return;
       }
+
+      if (this.chase >= 100) {
+        this.endRun("The rivals caught up!");
+        return;
+      }
+
+      this.updateUI();
+    } catch (error) {
+      console.error("Game update failed:", error);
+      this.pause();
+      this.ui.onError?.(error);
+      return;
     }
 
-    this.best = Math.max(this.best, Math.floor(this.score));
-
-    this.ui?.saveBest?.(this.best);
-    this.updateHUD();
-
-    if (this.chase >= 100) {
-      this.endRun("The rivals caught up!");
-    }
+    this.frameId = requestAnimationFrame(this.boundLoop);
   }
 
   dispose() {
-    try {
-      this.world?.dispose?.();
-    } catch (error) {
-      console.warn("World cleanup:", error);
-    }
-
-    try {
-      this.player?.dispose?.();
-    } catch (error) {
-      console.warn("Player cleanup:", error);
-    }
+    cancelAnimationFrame(this.frameId);
+    this.state = "disposed";
+    this.player?.dispose?.();
+    this.world?.dispose?.();
   }
 }
