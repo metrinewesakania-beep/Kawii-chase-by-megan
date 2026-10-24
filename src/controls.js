@@ -1,250 +1,267 @@
-
- // src/controls.js
- // KAWIIS CHASE WITH MEGAN — mobile and keyboard controls
+// KAWIIS CHASE WITH MEGAN
+// Mobile touch controls, keyboard controls, swipes and double-tap power-up.
 
 export function createControls({
-  onAction,
-  onPause,
-  onMove,
+  onAction = () => {},
+  onPause = () => {},
+  onMove = () => {},
   elements = {}
 } = {}) {
-  if (typeof onAction !== "function") {
-    throw new Error("createControls requires onAction(callback)");
-  }
-
-  const removers = [];
-  const held = { left: false, right: false };
-  const locked = { jump: false, slide: false, trick: false };
-
-  const canvas = document.querySelector("#glcanvas");
-  const SWIPE = 35;
-  const DOUBLE_TAP = 320;
-
-  let startX = 0;
-  let startY = 0;
-  let startTime = 0;
-  let pointerId = null;
+  let left = false;
+  let right = false;
+  let jumpLocked = false;
+  let slideLocked = false;
+  let trickLocked = false;
   let lastTap = 0;
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let disposed = false;
 
-  function emit(action) {
-    onAction(action);
-  }
+  const cleanups = [];
 
-  function emitMove() {
-    const horizontal =
-      (held.right ? 1 : 0) - (held.left ? 1 : 0);
-
-    if (typeof onMove === "function") {
-      onMove(horizontal, 0);
-    }
-  }
-
-  function listen(target, type, fn, options) {
+  function listen(target, event, handler, options) {
     if (!target) return;
-    target.addEventListener(type, fn, options);
-    removers.push(() =>
-      target.removeEventListener(type, fn, options)
-    );
-  }
 
-  function press(action) {
-    if (action === "left" || action === "right") {
-      if (!held[action]) {
-        held[action] = true;
-        emit(action);
-        emitMove();
-      }
-      return;
-    }
+    target.addEventListener(event, handler, options);
 
-    if (!locked[action]) {
-      locked[action] = true;
-      emit(action);
-    }
-  }
-
-  function release(action) {
-    if (action === "left" || action === "right") {
-      held[action] = false;
-      emitMove();
-    } else {
-      locked[action] = false;
-    }
-  }
-
-  function bindButton(element, action) {
-    if (!element) return;
-
-    listen(element, "pointerdown", event => {
-      if (event.cancelable) event.preventDefault();
-      press(action);
-    }, { passive: false });
-
-    for (const type of [
-      "pointerup", "pointercancel", "pointerleave"
-    ]) {
-      listen(element, type, () => release(action));
-    }
-
-    listen(element, "keydown", event => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        press(action);
-      }
+    cleanups.push(() => {
+      target.removeEventListener(event, handler, options);
     });
-
-    listen(element, "keyup", () => release(action));
   }
 
-  bindButton(elements.left, "left");
-  bindButton(elements.right, "right");
-  bindButton(elements.jump, "jump");
-  bindButton(elements.slide, "slide");
-  bindButton(elements.trick, "trick");
+  function movePlayer() {
+    onMove((right ? 1 : 0) - (left ? 1 : 0), 0);
+  }
+
+  function setDirection(direction, pressed) {
+    if (direction === "left") left = pressed;
+    if (direction === "right") right = pressed;
+    movePlayer();
+  }
+
+  function actionOnce(name) {
+    if (disposed) return;
+
+    if (name === "jump") {
+      if (jumpLocked) return;
+      jumpLocked = true;
+    }
+
+    if (name === "slide") {
+      if (slideLocked) return;
+      slideLocked = true;
+    }
+
+    if (name === "trick") {
+      if (trickLocked) return;
+      trickLocked = true;
+    }
+
+    onAction(name);
+  }
+
+  function bindHold(button, direction) {
+    if (!button) return;
+
+    const start = (event) => {
+      event.preventDefault();
+      setDirection(direction, true);
+
+      try {
+        button.setPointerCapture?.(event.pointerId);
+      } catch (_) {}
+    };
+
+    const stop = (event) => {
+      if (event) event.preventDefault();
+      setDirection(direction, false);
+    };
+
+    listen(button, "pointerdown", start);
+    listen(button, "pointerup", stop);
+    listen(button, "pointercancel", stop);
+    listen(button, "lostpointercapture", stop);
+    listen(button, "contextmenu", (event) => event.preventDefault());
+  }
+
+  function bindAction(button, name) {
+    if (!button) return;
+
+    const press = (event) => {
+      event.preventDefault();
+      actionOnce(name);
+    };
+
+    const release = () => {
+      if (name === "jump") jumpLocked = false;
+      if (name === "slide") slideLocked = false;
+      if (name === "trick") trickLocked = false;
+    };
+
+    listen(button, "pointerdown", press);
+    listen(button, "pointerup", release);
+    listen(button, "pointercancel", release);
+    listen(button, "lostpointercapture", release);
+    listen(button, "contextmenu", (event) => event.preventDefault());
+  }
+
+  bindHold(elements.left, "left");
+  bindHold(elements.right, "right");
+
+  bindAction(elements.jump, "jump");
+  bindAction(elements.slide, "slide");
+  bindAction(elements.trick, "trick");
+  bindAction(elements.power, "power");
+
+  const keysDown = new Set();
 
   function keyDown(event) {
     const key = event.key.toLowerCase();
 
-    if (key === "p" || event.code === "Escape") {
-      event.preventDefault();
-      onPause?.();
-      return;
+    const controlledKeys = [
+      "arrowleft", "arrowright", "arrowup", "arrowdown",
+      "a", "d", "w", "s", " ", "t", "e", "p", "escape",
+      "x", "shift"
+    ];
+
+    if (controlledKeys.includes(key)) event.preventDefault();
+    if (event.repeat && keysDown.has(key)) return;
+
+    keysDown.add(key);
+
+    if (key === "arrowleft" || key === "a") {
+      setDirection("left", true);
     }
 
-    const actions = {
-      ArrowLeft: "left",
-      ArrowRight: "right",
-      ArrowUp: "jump",
-      ArrowDown: "slide"
-    };
+    if (key === "arrowright" || key === "d") {
+      setDirection("right", true);
+    }
 
-    const action = actions[event.code] || ({
-      a: "left",
-      d: "right",
-      w: "jump",
-      s: "slide",
-      " ": "jump",
-      t: "trick",
-      e: "trick"
-    })[key];
+    if (key === "arrowup" || key === "w" || key === " ") {
+      actionOnce("jump");
+    }
 
-    if (!action) return;
-    event.preventDefault();
-    press(action);
+    if (key === "arrowdown" || key === "s") {
+      actionOnce("slide");
+    }
+
+    if (key === "t" || key === "e") {
+      actionOnce("trick");
+    }
+
+    if (key === "x" || key === "shift") {
+      actionOnce("power");
+    }
+
+    if (key === "p" || key === "escape") {
+      onPause();
+    }
   }
 
   function keyUp(event) {
     const key = event.key.toLowerCase();
+    keysDown.delete(key);
 
-    if (key === "a" || event.code === "ArrowLeft") {
-      release("left");
+    if (key === "arrowleft" || key === "a") {
+      setDirection("left", false);
     }
-    if (key === "d" || event.code === "ArrowRight") {
-      release("right");
+
+    if (key === "arrowright" || key === "d") {
+      setDirection("right", false);
     }
-    if (key === "w" || key === " " ||
-        event.code === "ArrowUp") release("jump");
-    if (key === "s" || event.code === "ArrowDown") {
-      release("slide");
+
+    if (key === "arrowup" || key === "w" || key === " ") {
+      jumpLocked = false;
     }
-    if (key === "t" || key === "e") release("trick");
+
+    if (key === "arrowdown" || key === "s") {
+      slideLocked = false;
+    }
+
+    if (key === "t" || key === "e") {
+      trickLocked = false;
+    }
+
+    if (key === "x" || key === "shift") {
+      trickLocked = false;
+    }
   }
 
-  listen(window, "keydown", keyDown, { passive: false });
+  listen(window, "keydown", keyDown);
   listen(window, "keyup", keyUp);
 
-  function isUI(target) {
-    return !!target?.closest?.(
-      "button, input, select, textarea, a, #mobile-controls"
-    );
+  function clearMovement() {
+    left = false;
+    right = false;
+    keysDown.clear();
+
+    jumpLocked = false;
+    slideLocked = false;
+    trickLocked = false;
+
+    movePlayer();
   }
 
-  function pointerDown(event) {
-    if (isUI(event.target) || pointerId !== null) return;
+  listen(window, "blur", clearMovement);
+  listen(document, "visibilitychange", () => {
+    if (document.hidden) clearMovement();
+  });
 
-    pointerId = event.pointerId;
-    startX = event.clientX;
-    startY = event.clientY;
-    startTime = performance.now();
+  const canvas = document.querySelector("#glcanvas");
+
+  function touchStart(event) {
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
   }
 
-  function pointerUp(event) {
-    if (event.pointerId !== pointerId) return;
+  function touchEnd(event) {
+    const touch = event.changedTouches[0];
+    if (!touch) return;
 
-    const dx = event.clientX - startX;
-    const dy = event.clientY - startY;
-    const duration = performance.now() - startTime;
-    pointerId = null;
+    const dx = touch.clientX - touchStartX;
+    const dy = touch.clientY - touchStartY;
+    const now = Date.now();
 
-    if (duration > 700) {
+    // Two quick taps activate the power-up.
+    if (now - lastTap < 320 && Math.abs(dx) < 25 && Math.abs(dy) < 25) {
+      actionOnce("power");
       lastTap = 0;
       return;
     }
 
-    if (Math.abs(dx) > SWIPE &&
-        Math.abs(dx) > Math.abs(dy)) {
-      lastTap = 0;
-      emit(dx < 0 ? "left" : "right");
-      return;
+    lastTap = now;
+
+    // Ignore tiny movements.
+    if (Math.abs(dx) < 30 && Math.abs(dy) < 30) return;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      actionOnce(dx < 0 ? "left" : "right");
+    } else if (dy < 0) {
+      actionOnce("jump");
+    } else {
+      actionOnce("slide");
     }
-
-    if (Math.abs(dy) > SWIPE &&
-        Math.abs(dy) > Math.abs(dx)) {
-      lastTap = 0;
-      emit(dy < 0 ? "jump" : "slide");
-      return;
-    }
-
-    if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
-      const now = performance.now();
-
-      if (lastTap && now - lastTap <= DOUBLE_TAP) {
-        lastTap = 0;
-        emit("powerup");
-      } else {
-        lastTap = now;
-      }
-    }
-  }
-
-  function pointerCancel() {
-    pointerId = null;
-    lastTap = 0;
   }
 
   if (canvas) {
-    listen(canvas, "pointerdown", pointerDown);
-    listen(canvas, "pointerup", pointerUp);
-    listen(canvas, "pointercancel", pointerCancel);
-
-    const oldTouchAction = canvas.style.touchAction;
-    canvas.style.touchAction = "none";
-
-    removers.push(() => {
-      canvas.style.touchAction = oldTouchAction;
-    });
+    listen(canvas, "touchstart", touchStart, { passive: true });
+    listen(canvas, "touchend", touchEnd, { passive: true });
   }
 
-  function clearHeld() {
-    held.left = false;
-    held.right = false;
-    locked.jump = false;
-    locked.slide = false;
-    locked.trick = false;
-    pointerId = null;
-    lastTap = 0;
-    emitMove();
-  }
+  listen(elements.pause, "click", onPause);
 
-  listen(window, "blur", clearHeld);
-  listen(document, "visibilitychange", () => {
-    if (document.hidden) clearHeld();
-  });
+  return {
+    dispose() {
+      if (disposed) return;
+      disposed = true;
 
-  function dispose() {
-    clearHeld();
-    for (const remove of removers.splice(0)) remove();
-  }
+      clearMovement();
 
-  return { dispose };
+      for (const cleanup of cleanups) cleanup();
+      cleanups.length = 0;
+    }
+  };
 }
