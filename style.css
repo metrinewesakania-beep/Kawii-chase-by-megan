@@ -624,3 +624,123 @@ h2 {
     scroll-behavior: auto !important;
   }
 }
+/* KAWIIS CHASE — upgraded mobile controls */
+#mobile-controls {
+  position: absolute;
+  left: var(--l);
+  right: var(--r);
+  bottom: calc(var(--b) + 12px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+#mobile-controls button {
+  pointer-events: auto;
+  min-width: 54px;
+  min-height: 54px;
+  padding: 10px;
+  border: 2px solid var(--cyan);
+  border-radius: 16px;
+  color: #fff;
+  background: #170b32dd;
+  box-shadow: 0 0 14px #8b3dff66;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  touch-action: manipulation;
+}
+
+#mobile-controls button:active {
+  background: linear-gradient(135deg, var(--purple), var(--pink));
+}
+
+#mobile-controls .movement {
+  display: flex;
+  gap: 8px;
+}
+
+#mobile-controls .action {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#jump-btn {
+  border-color: var(--pink) !important;
+}
+
+#slide-btn {
+  border-color: var(--amber) !important;
+}
+
+#touch-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--b) + 92px);
+  transform: translateX(-50%);
+  max-width: 90%;
+  padding: 8px 12px;
+  border: 1px solid #ffffff33;
+  border-radius: 20px;
+  background: #0b0716bb;
+  color: #fff;
+  font-size: 11px;
+  text-align: center;
+  pointer-events: none;
+}
+
+#power-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--cyan), var(--purple), var(--pink));
+  transition: width 0.2s linear;
+}
+
+#chase-text {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--pink);
+  font-weight: 800;
+}
+
+#chase-progress {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--cyan), var(--pink));
+}
+
+#help-content {
+  max-width: 36ch;
+  color: var(--ink);
+  line-height: 1.65;
+}
+
+#help-content p {
+  margin: 8px 0;
+}
+
+@media (max-width: 380px) {
+  #mobile-controls button {
+    min-width: 46px;
+    min-height: 48px;
+    padding: 8px;
+    font-size: 11px;
+  }
+
+  #mobile-controls .movement,
+  #mobile-controls .action {
+    gap: 5px;
+  }
+
+  #touch-hint {
+    font-size: 10px;
+  }
+}
